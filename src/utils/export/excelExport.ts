@@ -5,87 +5,164 @@ import { BucketType } from "@/src/types/finance";
 import { ExportData } from "@/src/types/export-data";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Excel Export — two-sheet workbook: Summary + Categories
+// Excel Export — two-sheet workbook
+//   Sheet 1 · Summary  — user details + financial summary + 50/30/20 buckets
+//   Sheet 2 · Expenses — full expense table, one row per category
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const exportToExcel = async (data: ExportData): Promise<void> => {
+export const exportToExcel = async (
+  data: ExportData,
+  userName: string = "Account Holder",
+  userEmail: string = "",
+): Promise<void> => {
   const surplus = data.totalIncome - data.grandTotal;
+  const isOverBudget = surplus < 0;
   const todayStr = new Date().toLocaleDateString("en-IN");
+  const timeStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  const statementId = `KBF-${Date.now().toString(36).toUpperCase()}`;
 
-  // ── Helper to compute bucket stats ────────────────────────────────────────
-  const bucketPctIncome = (key: BucketType) =>
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const fmtPctIncome = (amount: number) =>
     data.totalIncome > 0
-      ? `${(((data.bucketTotals[key] ?? 0) / data.totalIncome) * 100).toFixed(1)}%`
+      ? `${((amount / data.totalIncome) * 100).toFixed(1)}%`
       : "—";
 
-  const bucketPctSpend = (key: BucketType) =>
+  const fmtPctSpend = (amount: number) =>
     data.grandTotal > 0
-      ? `${(((data.bucketTotals[key] ?? 0) / data.grandTotal) * 100).toFixed(1)}%`
+      ? `${((amount / data.grandTotal) * 100).toFixed(1)}%`
       : "—";
 
-  const bucketVariance = (key: BucketType, ideal: number) =>
-    data.totalIncome > 0
-      ? `${((((data.bucketTotals[key] ?? 0) / data.totalIncome) * 100) - ideal).toFixed(1)}%`
-      : "—";
+  const bucketVariance = (key: BucketType, ideal: number) => {
+    if (data.totalIncome <= 0) return "—";
+    const pct = ((data.bucketTotals[key] ?? 0) / data.totalIncome) * 100;
+    const diff = pct - ideal;
+    return `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`;
+  };
 
-  // ── Sheet 1: Summary ──────────────────────────────────────────────────────
+  // ── Sheet 1: Summary ────────────────────────────────────────────────────────
   const summaryAOA = [
-    ["KAALBYTE FINANCE — EXPENSE STATEMENT"],
+    // Logo / brand row
+    ["KAALBYTE FINANCE", "", "", "", "", ""],
+    ["Personal Finance Statement", "", "", "", "", ""],
     [],
-    ["Period",    data.month_range],
-    ["Month",     data.month],
-    ["Generated", todayStr],
+    // ── User Details ──────────────────────────────────────────────────────────
+    ["ACCOUNT DETAILS", "", "", "", "", ""],
+    ["Account Holder", userName],
+    ["Email", userEmail || "—"],
+    ["Statement Period", data.month_range],
+    ["Month", data.month],
+    ["Generated On", `${todayStr} · ${timeStr} IST`],
+    ["Statement ID", statementId],
     [],
-    ["FINANCIAL SUMMARY"],
+    // ── Financial Summary ─────────────────────────────────────────────────────
+    ["FINANCIAL SUMMARY", "", "", "", "", ""],
     ["", "Amount (₹)"],
-    ["Total Income",                      data.totalIncome],
-    ["Total Expenses",                    data.grandTotal],
-    [surplus >= 0 ? "Surplus" : "Deficit", Math.abs(surplus)],
-    ["Utilization %", data.totalIncome > 0
-      ? `${((data.grandTotal / data.totalIncome) * 100).toFixed(1)}%`
-      : "—"],
+    ["Total Income", data.totalIncome > 0 ? data.totalIncome : "—"],
+    ["Total Expenses", data.grandTotal],
+    [isOverBudget ? "Deficit" : "Surplus", Math.abs(surplus)],
+    [
+      "Utilization",
+      data.totalIncome > 0
+        ? `${((data.grandTotal / data.totalIncome) * 100).toFixed(1)}%`
+        : "—",
+    ],
     [],
-    ["BUDGET ALLOCATION (50/30/20 Rule)"],
+    // ── 50/30/20 Budget Allocation ────────────────────────────────────────────
+    ["BUDGET ALLOCATION  (50 / 30 / 20 Rule)", "", "", "", "", ""],
     ["Bucket", "Amount (₹)", "% of Income", "% of Spend", "Ideal %", "Variance"],
-    ["Needs",   data.bucketTotals[BucketType.NEEDS]   ?? 0, bucketPctIncome(BucketType.NEEDS),   bucketPctSpend(BucketType.NEEDS),   "50%", bucketVariance(BucketType.NEEDS, 50)],
-    ["Wants",   data.bucketTotals[BucketType.WANTS]   ?? 0, bucketPctIncome(BucketType.WANTS),   bucketPctSpend(BucketType.WANTS),   "30%", bucketVariance(BucketType.WANTS, 30)],
-    ["Savings", data.bucketTotals[BucketType.SAVINGS] ?? 0, bucketPctIncome(BucketType.SAVINGS), bucketPctSpend(BucketType.SAVINGS), "20%", bucketVariance(BucketType.SAVINGS, 20)],
+    [
+      "Needs",
+      data.bucketTotals[BucketType.NEEDS] ?? 0,
+      fmtPctIncome(data.bucketTotals[BucketType.NEEDS] ?? 0),
+      fmtPctSpend(data.bucketTotals[BucketType.NEEDS] ?? 0),
+      "50%",
+      bucketVariance(BucketType.NEEDS, 50),
+    ],
+    [
+      "Wants",
+      data.bucketTotals[BucketType.WANTS] ?? 0,
+      fmtPctIncome(data.bucketTotals[BucketType.WANTS] ?? 0),
+      fmtPctSpend(data.bucketTotals[BucketType.WANTS] ?? 0),
+      "30%",
+      bucketVariance(BucketType.WANTS, 30),
+    ],
+    [
+      "Savings",
+      data.bucketTotals[BucketType.SAVINGS] ?? 0,
+      fmtPctIncome(data.bucketTotals[BucketType.SAVINGS] ?? 0),
+      fmtPctSpend(data.bucketTotals[BucketType.SAVINGS] ?? 0),
+      "20%",
+      bucketVariance(BucketType.SAVINGS, 20),
+    ],
+    ["TOTAL", data.grandTotal, "", "100%", "100%", ""],
+    [],
+    // ── Declaration ───────────────────────────────────────────────────────────
+    ["DECLARATION"],
+    [
+      "This statement is auto-generated by KaalByte Finance for personal reference only.",
+    ],
+    ["All figures are based on entries recorded by the account holder."],
+    ["This document does not constitute an official financial statement."],
   ];
 
-  // ── Sheet 2: Categories ───────────────────────────────────────────────────
-  const categoryDataRows = Object.entries(data.categoryTotals)
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a)
-    .map(([cat, amount], i) => [
+  // ── Sheet 2: Expenses — individual daily entries ────────────────────────────
+  const expenseRows = (data.entries ?? [])
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((entry, i) => [
       i + 1,
-      cat,
-      amount,
-      data.totalIncome > 0 ? `${((amount / data.totalIncome) * 100).toFixed(1)}%` : "—",
-      data.grandTotal  > 0 ? `${((amount / data.grandTotal)  * 100).toFixed(1)}%` : "—",
+      entry.date,
+      entry.category,
+      entry.description || "—",
+      entry.bucket,
+      entry.amount,
+      data.grandTotal > 0
+        ? `${((entry.amount / data.grandTotal) * 100).toFixed(1)}%`
+        : "—",
     ]);
 
-  const categoriesAOA = [
-    ["KAALBYTE FINANCE — CATEGORY BREAKDOWN"],
-    [`${data.month} · ${data.month_range}`],
+  const expensesAOA = [
+    // Header
+    ["KAALBYTE FINANCE — EXPENSE DETAIL", "", "", "", "", "", ""],
+    [`${data.month} · ${data.month_range}`, "", "", "", "", "", ""],
+    [`Account: ${userName}${userEmail ? ` · ${userEmail}` : ""}`, "", "", "", "", "", ""],
     [],
-    ["#", "Category", "Amount (₹)", "% of Income", "% of Total Spend"],
-    ...categoryDataRows,
+    // Column headers
+    ["#", "Date", "Category", "Description", "Bucket", "Amount (₹)", "% of Spend"],
+    // Data rows
+    ...expenseRows,
+    // Footer totals
     [],
-    ["", "GRAND TOTAL", data.grandTotal, "", "100%"],
+    ["", "", "GRAND TOTAL", "", "", data.grandTotal, "100%"],
   ];
 
-  // ── Build workbook ────────────────────────────────────────────────────────
+  // ── Build workbook ──────────────────────────────────────────────────────────
   const wb = XLSX.utils.book_new();
 
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryAOA);
-  summarySheet["!cols"] = [{ wch: 28 }, { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 10 }, { wch: 12 }];
+  summarySheet["!cols"] = [
+    { wch: 28 },
+    { wch: 22 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 14 },
+  ];
   XLSX.utils.book_append_sheet(wb, summarySheet, "Summary");
 
-  const categorySheet = XLSX.utils.aoa_to_sheet(categoriesAOA);
-  categorySheet["!cols"] = [{ wch: 6 }, { wch: 30 }, { wch: 18 }, { wch: 16 }, { wch: 20 }];
-  XLSX.utils.book_append_sheet(wb, categorySheet, "Categories");
+  const expensesSheet = XLSX.utils.aoa_to_sheet(expensesAOA);
+  expensesSheet["!cols"] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 28 },
+    { wch: 12 },
+    { wch: 16 },
+    { wch: 14 },
+  ];
+  XLSX.utils.book_append_sheet(wb, expensesSheet, "Expenses");
 
-  // ── Write & share ─────────────────────────────────────────────────────────
+  // ── Write & share ───────────────────────────────────────────────────────────
   const wbout = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
   const dest = `${FileSystem.documentDirectory}${data.month.replace(/ /g, "_")}_statement.xlsx`;
 
@@ -94,7 +171,8 @@ export const exportToExcel = async (data: ExportData): Promise<void> => {
   });
 
   await Sharing.shareAsync(dest, {
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     UTI: "com.microsoft.excel.xlsx",
     dialogTitle: `${data.month} Expense Statement`,
   });

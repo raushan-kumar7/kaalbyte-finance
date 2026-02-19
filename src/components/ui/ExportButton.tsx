@@ -14,6 +14,7 @@ import Typo from "@/src/components/ui/Typo";
 import { exportToPDF, exportToExcel } from "@/src/utils/export";
 import { BucketType } from "@/src/types/finance";
 import { useAuth } from "@/src/hooks";
+import { ExpenseEntry } from "@/src/types/export-data";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ interface ExportData {
   grandTotal: number;
   bucketTotals: Record<BucketType, number>;
   categoryTotals: Record<string, number>;
+  entries: ExpenseEntry[];
 }
 
 interface ExportButtonProps {
@@ -115,15 +117,15 @@ const ExportButton = ({ data, totalIncome }: ExportButtonProps) => {
     closeMenu(async () => {
       setLoading(type);
       try {
+        const resolvedName =
+          `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Account Holder";
+        const resolvedEmail = user?.email ?? "";
         const payload = { ...data, totalIncome };
+
         if (type === "pdf") {
-          await exportToPDF(
-            payload,
-            `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Account Holder",
-            user?.email ?? ""
-          );
+          await exportToPDF(payload, resolvedName, resolvedEmail);
         } else {
-          await exportToExcel(payload);
+          await exportToExcel(payload, resolvedName, resolvedEmail);
         }
       } catch {
         Alert.alert(

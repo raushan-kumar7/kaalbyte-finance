@@ -69,33 +69,60 @@ export function buildPdfHtml(
       </tr>`;
   }).join("");
 
-  // ── Category rows ──────────────────────────────────────────────────────────
-  const categoryRowsHTML = Object.entries(data.categoryTotals)
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a)
-    .map(([cat, amount], i) => {
-      const pctIncome =
-        data.totalIncome > 0
-          ? ((amount / data.totalIncome) * 100).toFixed(1)
-          : "—";
+  // ── Expense detail rows — individual daily entries (page 2 table) ──────────
+  const expenseRows = (data.entries ?? [])
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((entry, i) => {
       const pctSpend =
         data.grandTotal > 0
-          ? ((amount / data.grandTotal) * 100).toFixed(1)
+          ? ((entry.amount / data.grandTotal) * 100).toFixed(1)
           : "—";
-      const barFill =
-        data.grandTotal > 0 ? Math.round((amount / data.grandTotal) * 20) : 0;
-      const bar = "█".repeat(barFill) + "░".repeat(20 - barFill);
       return `
         <tr class="${i % 2 === 0 ? "even" : ""}">
-          <td class="center muted mono" style="font-size:11px">${String(i + 1).padStart(2, "0")}</td>
-          <td class="fw6">${cat}</td>
-          <td class="right mono">₹${amount.toLocaleString("en-IN")}</td>
-          <td class="center mono" style="font-size:10px;color:#004B8E;letter-spacing:-1px">${bar}</td>
+          <td class="center muted mono">${String(i + 1).padStart(2, "0")}</td>
+          <td class="center mono">${entry.date}</td>
+          <td class="fw6">${entry.category}</td>
+          <td class="muted">${entry.description || "—"}</td>
+          <td class="center mono muted" style="text-transform:capitalize">${entry.bucket}</td>
+          <td class="right mono">₹${entry.amount.toLocaleString("en-IN")}</td>
           <td class="center mono">${pctSpend}%</td>
-          <td class="center mono">${pctIncome}%</td>
         </tr>`;
     })
     .join("");
+
+  // ── Shared header HTML ─────────────────────────────────────────────────────
+  const headerHTML = `
+  <div class="bank-header">
+    <div class="logo-wrap">
+      <img class="logo-img" src="data:image/png;base64,${LOGO_BASE64}" alt="KaalByte Finance Logo"/>
+      <div>
+        <div class="app-name">KaalByte Finance</div>
+        <div class="app-tag">Personal Finance Statement</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <div class="doc-lbl">Statement ID</div>
+      <div class="doc-id">${statementId}</div>
+      <div class="doc-dt">${generatedOn} · ${generatedTime}</div>
+    </div>
+  </div>
+  <div class="accent-bar"></div>`;
+
+
+
+  // ── Reusable footer (page number injected per page) ─────────────────────────
+  const buildFooterHTML = (page: string) => `
+  <div class="doc-footer">
+    <div class="footer-brand">KaalByte <span>Finance</span></div>
+    <div class="footer-note">Auto-generated · ${generatedOn} · ${generatedTime} IST<br/>For personal use only · Not an official document</div>
+    <div class="footer-page">${page}</div>
+  </div>
+  <div class="wm">
+    <span>KAALBYTE FINANCE</span>
+    <span>${statementId}</span>
+    <span>PERSONAL EXPENSE STATEMENT</span>
+  </div>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -112,6 +139,9 @@ export function buildPdfHtml(
     .center { text-align:center; }
     .fw6 { font-weight:600; }
     .fw7 { font-weight:700; }
+
+    /* ── Page break ── */
+    .page-break { page-break-before: always; break-before: page; }
 
     /* ── Header ── */
     .bank-header { background:#010528; padding:24px 40px; display:flex; justify-content:space-between; align-items:center; }
@@ -136,6 +166,17 @@ export function buildPdfHtml(
     .period-badge { background:#010528; border-radius:6px; padding:8px 16px; text-align:center; }
     .period-badge .pb-lbl { font-family:'Fira Code',monospace; font-size:9px; color:#9CA3AF; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:2px; }
     .period-badge .pb-val { font-family:'Lora',serif; font-size:15px; font-weight:700; color:#B3945B; }
+
+    /* ── User info card ── */
+    .user-card { margin:24px 40px 0; border:1px solid #E2E8F0; border-radius:10px; overflow:hidden; }
+    .user-card-header { background:#010528; padding:12px 20px; }
+    .user-card-header span { font-family:'Fira Code',monospace; font-size:9px; color:#9CA3AF; text-transform:uppercase; letter-spacing:2px; }
+    .user-card-body { display:flex; gap:0; }
+    .user-field { flex:1; padding:14px 20px; border-right:1px solid #E2E8F0; }
+    .user-field:last-child { border-right:none; }
+    .user-field .uf-lbl { font-family:'Fira Code',monospace; font-size:9px; color:#6B7280; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:5px; }
+    .user-field .uf-val { font-size:14px; font-weight:600; color:#0F172A; }
+    .user-field .uf-sub { font-family:'Fira Code',monospace; font-size:10px; color:#9CA3AF; margin-top:2px; }
 
     /* ── Body ── */
     .body { padding:26px 40px; }
@@ -181,7 +222,7 @@ export function buildPdfHtml(
     .decl p { font-size:11px; color:#6B7280; line-height:1.7; font-family:'Fira Code',monospace; }
 
     /* ── Footer ── */
-    .doc-footer { border-top:1px solid #E2E8F0; padding:14px 40px; display:flex; justify-content:space-between; align-items:center; background:#F8FAFC; }
+    .doc-footer { border-top:1px solid #E2E8F0; padding:14px 40px; display:flex; justify-content:space-between; align-items:center; background:#F8FAFC; margin-top: auto; }
     .footer-brand { font-family:'Lora',serif; font-size:12px; font-weight:700; color:#010528; }
     .footer-brand span { color:#B3945B; }
     .footer-note  { font-family:'Fira Code',monospace; font-size:9px; color:#9CA3AF; text-align:center; line-height:1.6; }
@@ -190,53 +231,47 @@ export function buildPdfHtml(
     /* ── Watermark ── */
     .wm { background:#010A3D; padding:5px 40px; display:flex; justify-content:space-between; }
     .wm span { font-family:'Fira Code',monospace; font-size:9px; color:#1E3A6E; letter-spacing:1px; }
+
+    /* ── Page 2 header ── */
+    .p2-header { background:#010528; padding:16px 40px; display:flex; justify-content:space-between; align-items:center; }
+    .p2-title { font-family:'Lora',serif; font-size:16px; font-weight:700; color:#B3945B; }
+    .p2-meta  { font-family:'Fira Code',monospace; font-size:10px; color:#9CA3AF; text-align:right; }
   </style>
 </head>
 <body>
 
-  <!-- HEADER -->
-  <div class="bank-header">
-    <div class="logo-wrap">
-      <img class="logo-img" src="data:image/png;base64,${LOGO_BASE64}" alt="KaalByte Finance Logo"/>
-      <div>
-        <div class="app-name">KaalByte Finance</div>
-        <div class="app-tag">Personal Finance Statement</div>
-      </div>
-    </div>
-    <div class="hdr-right">
-      <div class="doc-lbl">Statement ID</div>
-      <div class="doc-id">${statementId}</div>
-      <div class="doc-dt">${generatedOn} · ${generatedTime}</div>
-    </div>
-  </div>
-  <div class="accent-bar"></div>
+  <!-- ═══════════════════════════════════════════════════════════ PAGE 1 ══ -->
 
-  <!-- ACCOUNT INFO -->
-  <div class="acct-strip">
-    <div class="acct-blocks">
-      <div class="acct-block">
-        <div class="lbl">Account Name</div>
-        <div class="val">${userName}</div>
-        ${userEmail ? `<div class="sub">${userEmail}</div>` : ""}
+  ${headerHTML}
+
+  <!-- User Details Card -->
+  <div class="user-card">
+    <div class="user-card-header"><span>Account Details</span></div>
+    <div class="user-card-body">
+      <div class="user-field">
+        <div class="uf-lbl">Account Holder</div>
+        <div class="uf-val">${userName}</div>
+        ${userEmail ? `<div class="uf-sub">${userEmail}</div>` : ""}
       </div>
-      <div class="acct-block">
-        <div class="lbl">Statement Period</div>
-        <div class="val">${data.month_range}</div>
-        <div class="sub">Monthly Expense Report</div>
+      <div class="user-field">
+        <div class="uf-lbl">Statement Period</div>
+        <div class="uf-val">${data.month}</div>
+        <div class="uf-sub">${data.month_range}</div>
       </div>
-      <div class="acct-block">
-        <div class="lbl">Generated On</div>
-        <div class="val">${generatedOn}</div>
-        <div class="sub">${generatedTime} IST</div>
+      <div class="user-field">
+        <div class="uf-lbl">Generated On</div>
+        <div class="uf-val">${generatedOn}</div>
+        <div class="uf-sub">${generatedTime} IST</div>
       </div>
-    </div>
-    <div class="period-badge">
-      <div class="pb-lbl">Period</div>
-      <div class="pb-val">${data.month}</div>
+      <div class="user-field">
+        <div class="uf-lbl">Statement ID</div>
+        <div class="uf-val" style="font-family:'Fira Code',monospace;font-size:12px">${statementId}</div>
+        <div class="uf-sub">Auto-generated</div>
+      </div>
     </div>
   </div>
 
-  <!-- BODY -->
+  <!-- BODY: Summary -->
   <div class="body">
 
     <!-- § 1 Financial Summary -->
@@ -306,37 +341,9 @@ export function buildPdfHtml(
       </tr></tfoot>
     </table>
 
-    <!-- § 3 Category Breakdown -->
+    <!-- § 3 Declaration -->
     <div class="sec-hdr">
       <div class="sec-num">3</div>
-      <div class="sec-title">Category-wise Expense Breakdown</div>
-      <div class="sec-line"></div>
-    </div>
-    <table>
-      <thead><tr>
-        <th class="center">#</th>
-        <th>Category</th>
-        <th class="right">Amount (₹)</th>
-        <th class="center">Distribution</th>
-        <th class="center">% of Spend</th>
-        <th class="center">% of Income</th>
-      </tr></thead>
-      <tbody>
-        ${categoryRowsHTML || `<tr><td colspan="6" style="text-align:center;color:#6B7280;padding:22px">No expenses recorded for this month</td></tr>`}
-      </tbody>
-      <tfoot><tr>
-        <td></td>
-        <td>Grand Total</td>
-        <td class="right">₹${data.grandTotal.toLocaleString("en-IN")}</td>
-        <td></td>
-        <td class="center">100%</td>
-        <td class="center">${data.totalIncome > 0 ? ((data.grandTotal / data.totalIncome) * 100).toFixed(1) + "%" : "—"}</td>
-      </tr></tfoot>
-    </table>
-
-    <!-- § 4 Declaration -->
-    <div class="sec-hdr">
-      <div class="sec-num">4</div>
       <div class="sec-title">Declaration</div>
       <div class="sec-line"></div>
     </div>
@@ -349,17 +356,59 @@ export function buildPdfHtml(
 
   </div>
 
-  <!-- FOOTER -->
-  <div class="doc-footer">
-    <div class="footer-brand">KaalByte <span>Finance</span></div>
-    <div class="footer-note">Auto-generated · ${generatedOn} · ${generatedTime} IST<br/>For personal use only · Not an official document</div>
-    <div class="footer-page">Page 1 of 1</div>
+  <!-- Page 1 Footer -->
+  ${buildFooterHTML("Page 1 of 2")}
+
+  <!-- ═══════════════════════════════════════════════════════════ PAGE 2 ══ -->
+  <div class="page-break"></div>
+
+  <!-- Page 2 Header -->
+  <div class="p2-header">
+    <div>
+      <div class="p2-title">KaalByte Finance</div>
+      <div style="font-family:'Fira Code',monospace;font-size:9px;color:#6B7280;letter-spacing:2px;text-transform:uppercase;margin-top:2px">Expense Detail — ${data.month}</div>
+    </div>
+    <div class="p2-meta">
+      <div>${userName}${userEmail ? ` · ${userEmail}` : ""}</div>
+      <div>${data.month_range} · ${statementId}</div>
+    </div>
   </div>
-  <div class="wm">
-    <span>KAALBYTE FINANCE</span>
-    <span>${statementId}</span>
-    <span>PERSONAL EXPENSE STATEMENT</span>
+  <div class="accent-bar"></div>
+
+  <!-- Expense Table -->
+  <div class="body">
+    <div class="sec-hdr">
+      <div class="sec-num">4</div>
+      <div class="sec-title">Category-wise Expense Breakdown</div>
+      <div class="sec-line"></div>
+    </div>
+    <table>
+      <thead><tr>
+        <th class="center">#</th>
+        <th class="center">Date</th>
+        <th>Category</th>
+        <th>Description</th>
+        <th class="center">Bucket</th>
+        <th class="right">Amount (₹)</th>
+        <th class="center">% of Spend</th>
+      </tr></thead>
+      <tbody>
+        ${expenseRows || `<tr><td colspan="7" style="text-align:center;color:#6B7280;padding:22px">No expenses recorded for this month</td></tr>`}
+      </tbody>
+      <tfoot><tr>
+        <td></td>
+        <td></td>
+        <td>Grand Total</td>
+        <td></td>
+        <td></td>
+        <td class="right">₹${data.grandTotal.toLocaleString("en-IN")}</td>
+        <td class="center">100%</td>
+      </tr></tfoot>
+    </table>
   </div>
+
+  <!-- Page 2 Footer -->
+  ${buildFooterHTML("Page 2 of 2")}
 
 </body>
 </html>`;
