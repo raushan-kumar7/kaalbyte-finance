@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { View, TouchableOpacity, FlatList } from "react-native";
 import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { ScreenWrapper, MonthlyExpensesTracker, Typo, ExportButton } from "@/src/components";
@@ -10,6 +10,7 @@ import { getCurrentUserId } from "@/src/utils/auth";
 import type { MonthlyExpenseTracker } from "@/src/types/finance";
 import type { MonthlyIncome } from "@/src/db/schema";
 import type { ExpenseEntry } from "@/src/types/export-data";
+import type { ExpenseRow } from "@/src/components/history/ExpensesTable";
 import {
   MONTH_NAMES,
   extractAvailableYears,
@@ -20,81 +21,166 @@ import {
   formatMonthRange,
 } from "@/src/utils/history";
 
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+/** Safely convert a DB date (Date object or ISO string) to "YYYY-MM-DD" */
+const toISODate = (d: Date | string): string => {
+  if (typeof d === "string") return d.split("T")[0];
+  return d.toISOString().split("T")[0];
+};
+
+/** Shared mapping from a raw DB entry → ExpenseRow for the table */
+const toExpenseRow = (e: {
+  id: number;
+  date: Date | string;
+  category: string;
+  description: string | null;
+  amount: number;
+  bucket: import("@/src/types/finance").BucketType;
+}): ExpenseRow => ({
+  id: String(e.id),
+  rawDate: toISODate(e.date),
+  date: new Date(e.date).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }),
+  category: e.category,
+  description: e.description ?? "",
+  amount: e.amount,
+  bucket: e.bucket,
+});
+
+/** Shared mapping from a raw DB entry → ExpenseEntry for PDF/Excel export */
+const toExportEntry = (e: {
+  date: Date | string;
+  category: string;
+  description: string | null;
+  amount: number;
+  bucket: import("@/src/types/finance").BucketType;
+}): ExpenseEntry => ({
+  date: new Date(e.date).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }),
+  category: e.category,
+  description: e.description ?? "",
+  amount: e.amount,
+  bucket: e.bucket,
+});
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 const History = () => {
   const currentDate = useMemo(() => new Date(), []);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth()); // 0-11
 
-  // Local state — does NOT touch the shared store
+  // ── Local state — does NOT touch the shared store ─────────────────────────
   const [monthlyExpenseSummary, setMonthlyExpenseSummary] =
     useState<MonthlyExpenseTracker | null>(null);
   const [selectedMonthIncome, setSelectedMonthIncome] =
     useState<MonthlyIncome | null>(null);
-  const [monthEntries, setMonthEntries] = useState<ExpenseEntry[]>([]);
+  const [monthEntries, setMonthEntries] = useState<ExpenseRow[]>([]);
+  const [exportEntries, setExportEntries] = useState<ExpenseEntry[]>([]);
   const [isLoadingLocal, setIsLoadingLocal] = useState(false);
 
-  // Generate monthKey from selected month/year
-  const monthKey = useMemo(() => {
-    return generateMonthKey(selectedYear, selectedMonth);
-  }, [selectedYear, selectedMonth]);
+  // ── Month key ─────────────────────────────────────────────────────────────
+  const monthKey = useMemo(
+    () => generateMonthKey(selectedYear, selectedMonth),
+    [selectedYear, selectedMonth],
+  );
 
-  // Only used to derive available years for the year selector
-  const { entries } = useAllDailyEntries();
+  // ── Only used to derive available years for the year selector ─────────────
+  const { entries: allEntries } = useAllDailyEntries();
   const { incomes } = useAllMonthlyIncomes();
 
-  // Fetch month-specific data locally — never writes to shared store
-  useEffect(() => {
-    let cancelled = false;
-    const fetchMonthData = async () => {
-      setIsLoadingLocal(true);
-      try {
-        const userId = getCurrentUserId();
-        const [summary, income, rawEntries] = await Promise.all([
-          DailyEntriesService.getMonthlyExpenseSummary(monthKey, userId),
-          MonthlyIncomesService.getIncomeByMonth(monthKey, userId),
-          DailyEntriesService.getEntriesByMonth(monthKey, userId),
-        ]);
-        if (!cancelled) {
-          setMonthlyExpenseSummary(summary);
-          setSelectedMonthIncome(income ?? null);
+  // ── Core fetch — called on mount, on month change, and after edit/delete ──
+  const fetchMonthData = useCallback(async (signal?: { cancelled: boolean }) => {
+    setIsLoadingLocal(true);
+    try {
+      const userId = getCurrentUserId();
+      const [summary, income, rawEntries] = await Promise.all([
+        DailyEntriesService.getMonthlyExpenseSummary(monthKey, userId),
+        MonthlyIncomesService.getIncomeByMonth(monthKey, userId),
+        DailyEntriesService.getEntriesByMonth(monthKey, userId),
+      ]);
 
-          // Map raw DB rows → ExpenseEntry[] for export
-          const mapped: ExpenseEntry[] = (rawEntries ?? []).map((e) => ({
-            date: new Date(e.date).toLocaleDateString("en-IN", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            }),
-            category: e.category,
-            description: e.description ?? "",
-            amount: e.amount,
-            bucket: e.bucket,
-          }));
-          setMonthEntries(mapped);
-        }
-      } catch {
-        if (!cancelled) {
-          setMonthlyExpenseSummary(null);
-          setSelectedMonthIncome(null);
-          setMonthEntries([]);
-        }
-      } finally {
-        if (!cancelled) setIsLoadingLocal(false);
-      }
-    };
+      if (signal?.cancelled) return;
 
-    fetchMonthData();
-    return () => {
-      cancelled = true;
-    };
+      setMonthlyExpenseSummary(summary);
+      setSelectedMonthIncome(income ?? null);
+      setMonthEntries((rawEntries ?? []).map(toExpenseRow));
+      setExportEntries((rawEntries ?? []).map(toExportEntry));
+    } catch {
+      if (signal?.cancelled) return;
+      setMonthlyExpenseSummary(null);
+      setSelectedMonthIncome(null);
+      setMonthEntries([]);
+      setExportEntries([]);
+    } finally {
+      if (!signal?.cancelled) setIsLoadingLocal(false);
+    }
   }, [monthKey]);
 
-  // Dynamically generate years based on available data
-  const years = useMemo(() => {
-    return extractAvailableYears(entries, incomes);
-  }, [entries, incomes]);
+  // ── Fetch when monthKey changes ───────────────────────────────────────────
+  useEffect(() => {
+    const signal = { cancelled: false };
+    fetchMonthData(signal);
+    return () => { signal.cancelled = true; };
+  }, [fetchMonthData]);
 
-  // Build month display data
+  // ── onUpdateEntry: called by ExpensesTable when user saves an edit ─────────
+  const handleUpdateEntry = useCallback(
+    async (id: string, updates: Partial<ExpenseRow>): Promise<boolean> => {
+      try {
+        const userId = getCurrentUserId();
+        const numericId = Number(id);
+
+        // Build only the fields the service needs
+        const payload: Record<string, unknown> = {};
+        if (updates.category !== undefined) payload.category = updates.category;
+        if (updates.description !== undefined) payload.description = updates.description;
+        if (updates.amount !== undefined) payload.amount = updates.amount;
+        if (updates.bucket !== undefined) payload.bucket = updates.bucket;
+
+        await DailyEntriesService.updateEntry(numericId, payload, userId);
+
+        // Silently refresh so the table shows the updated row immediately
+        await fetchMonthData();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [fetchMonthData],
+  );
+
+  // ── onDeleteEntry: called by ExpensesTable when user confirms delete ───────
+  const handleDeleteEntry = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        const userId = getCurrentUserId();
+        await DailyEntriesService.deleteEntry(Number(id), userId);
+
+        // Silently refresh so the deleted row disappears and totals update
+        await fetchMonthData();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [fetchMonthData],
+  );
+
+  // ── Available years ───────────────────────────────────────────────────────
+  const years = useMemo(
+    () => extractAvailableYears(allEntries, incomes),
+    [allEntries, incomes],
+  );
+
+  // ── data for MonthlyExpensesTracker (entries as ExpenseRow[]) ─────────────
   const data = useMemo(() => {
     const monthName = MONTH_NAMES[selectedMonth];
     const monthRange = formatMonthRange(monthName, selectedYear, selectedMonth);
@@ -106,54 +192,59 @@ const History = () => {
         grandTotal: monthlyExpenseSummary.grandTotal,
         bucketTotals: monthlyExpenseSummary.bucketTotals,
         categoryTotals: monthlyExpenseSummary.categoryTotals,
-        entries: monthEntries,
+        entries: monthEntries, // ExpenseRow[] — table + edit/delete
       };
     }
 
-    // Fallback with empty data while loading
     return {
       month: monthName,
       month_range: monthRange,
       grandTotal: 0,
       bucketTotals: calculateBucketTotals([]),
       categoryTotals: calculateCategoryTotals([]),
-      entries: [],
+      entries: [] as ExpenseRow[],
     };
   }, [selectedMonth, selectedYear, monthlyExpenseSummary, monthEntries]);
 
-  // Calculate total income
-  const totalIncome = useMemo(() => {
-    return calculateTotalIncome(selectedMonthIncome);
-  }, [selectedMonthIncome]);
+  // ── exportData for ExportButton (entries as ExpenseEntry[], no id) ─────────
+  const exportData = useMemo(
+    () => ({ ...data, entries: exportEntries }),
+    [data, exportEntries],
+  );
 
+  // ── Total income ──────────────────────────────────────────────────────────
+  const totalIncome = useMemo(
+    () => calculateTotalIncome(selectedMonthIncome),
+    [selectedMonthIncome],
+  );
+
+  // ── Month navigation ──────────────────────────────────────────────────────
   const handlePreviousMonth = () => {
     if (selectedMonth === 0) {
       setSelectedMonth(11);
-      const previousYear = selectedYear - 1;
-      if (years.includes(previousYear)) {
-        setSelectedYear(previousYear);
-      }
+      const prev = selectedYear - 1;
+      if (years.includes(prev)) setSelectedYear(prev);
     } else {
-      setSelectedMonth(selectedMonth - 1);
+      setSelectedMonth((m) => m - 1);
     }
   };
 
   const handleNextMonth = () => {
     if (selectedMonth === 11) {
       setSelectedMonth(0);
-      const nextYear = selectedYear + 1;
-      if (years.includes(nextYear)) {
-        setSelectedYear(nextYear);
-      }
+      const next = selectedYear + 1;
+      if (years.includes(next)) setSelectedYear(next);
     } else {
-      setSelectedMonth(selectedMonth + 1);
+      setSelectedMonth((m) => m + 1);
     }
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <ScreenWrapper bg="bg-brand-900">
       <View className="flex-1">
-        {/* Header with Navigation */}
+
+        {/* ── Page header ─────────────────────────────────────────────────── */}
         <View className="px-6 pt-6 pb-4 border-b border-white/5">
           <View className="mb-4">
             <Typo
@@ -167,7 +258,7 @@ const History = () => {
             </Typo>
           </View>
 
-          {/* Month Navigation */}
+          {/* ── Month navigation row ─────────────────────────────────────── */}
           <View className="flex-row items-center justify-between bg-brand-800 rounded-3xl p-4 border border-white/5">
             <TouchableOpacity
               onPress={handlePreviousMonth}
@@ -189,9 +280,9 @@ const History = () => {
               </Typo>
             </View>
 
-            {/* Right side: Export button + Next chevron */}
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <ExportButton data={data} totalIncome={totalIncome} />
+              {/* ExportButton gets ExpenseEntry[] data — no id fields */}
+              <ExportButton data={exportData} totalIncome={totalIncome} />
               <TouchableOpacity
                 onPress={handleNextMonth}
                 activeOpacity={0.7}
@@ -202,7 +293,7 @@ const History = () => {
             </View>
           </View>
 
-          {/* Quick Month Selector */}
+          {/* ── Quick month selector ─────────────────────────────────────── */}
           <View className="mt-4">
             <FlatList
               horizontal
@@ -222,9 +313,7 @@ const History = () => {
                   >
                     <Typo
                       className={`font-mono text-xs ${
-                        isSelected
-                          ? "text-white font-mono-bold"
-                          : "text-white/60"
+                        isSelected ? "text-white font-mono-bold" : "text-white/60"
                       }`}
                     >
                       {item.slice(0, 3)}
@@ -235,7 +324,7 @@ const History = () => {
             />
           </View>
 
-          {/* Year Selector */}
+          {/* ── Year selector ────────────────────────────────────────────── */}
           <View className="mt-4 flex-row items-center justify-center gap-2">
             <Typo
               variant="muted"
@@ -266,7 +355,7 @@ const History = () => {
           </View>
         </View>
 
-        {/* Monthly Expenses Tracker */}
+        {/* ── MonthlyExpensesTracker ───────────────────────────────────────── */}
         <Animated.View
           key={`${selectedMonth}-${selectedYear}`}
           entering={FadeIn.duration(300)}
@@ -276,8 +365,11 @@ const History = () => {
             data={data}
             totalIncome={totalIncome}
             isLoading={isLoadingLocal}
+            onUpdateEntry={handleUpdateEntry}
+            onDeleteEntry={handleDeleteEntry}
           />
         </Animated.View>
+
       </View>
     </ScreenWrapper>
   );
