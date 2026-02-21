@@ -6,7 +6,6 @@ import { DigitalAssetsService } from "../services";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getCurrentUserId } from "../utils/auth";
 
-
 interface DigitalAssetsState {
   // State
   assets: DigitalAssets[];
@@ -90,7 +89,10 @@ export const useDigitalAssetsStore = create<DigitalAssetsState>()(
         set({ isLoading: true, error: null });
         try {
           const userId = getCurrentUserId();
-          const assets = await DigitalAssetsService.getAssetsByType(type, userId);
+          const assets = await DigitalAssetsService.getAssetsByType(
+            type,
+            userId,
+          );
 
           if (type === DigitalGoldOrSilverAssetType.GOLD) {
             set({ goldAssets: assets, isLoading: false });
@@ -111,7 +113,10 @@ export const useDigitalAssetsStore = create<DigitalAssetsState>()(
         set({ isLoading: true, error: null });
         try {
           const userId = getCurrentUserId();
-          const summary = await DigitalAssetsService.getPortfolioSummary(type, userId);
+          const summary = await DigitalAssetsService.getPortfolioSummary(
+            type,
+            userId,
+          );
 
           if (type === DigitalGoldOrSilverAssetType.GOLD) {
             set({ goldSummary: summary, isLoading: false });
@@ -166,7 +171,11 @@ export const useDigitalAssetsStore = create<DigitalAssetsState>()(
         set({ isLoading: true, error: null });
         try {
           const userId = getCurrentUserId();
-          const updated = await DigitalAssetsService.updateAsset(id, asset, userId);
+          const updated = await DigitalAssetsService.updateAsset(
+            id,
+            asset,
+            userId,
+          );
 
           // Update in all relevant lists
           set((state) => ({

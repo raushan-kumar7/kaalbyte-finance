@@ -3,7 +3,6 @@ import {
   TextInput,
   TextInputProps,
   TouchableOpacity,
-  Animated,
 } from "react-native";
 import React, { useState } from "react";
 import { cn } from "@/src/utils/cn";

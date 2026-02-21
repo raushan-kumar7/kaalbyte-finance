@@ -18,7 +18,10 @@ export const exportToExcel = async (
   const surplus = data.totalIncome - data.grandTotal;
   const isOverBudget = surplus < 0;
   const todayStr = new Date().toLocaleDateString("en-IN");
-  const timeStr = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+  const timeStr = new Date().toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const statementId = `KBF-${Date.now().toString(36).toUpperCase()}`;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -69,7 +72,14 @@ export const exportToExcel = async (
     [],
     // ── 50/30/20 Budget Allocation ────────────────────────────────────────────
     ["BUDGET ALLOCATION  (50 / 30 / 20 Rule)", "", "", "", "", ""],
-    ["Bucket", "Amount (₹)", "% of Income", "% of Spend", "Ideal %", "Variance"],
+    [
+      "Bucket",
+      "Amount (₹)",
+      "% of Income",
+      "% of Spend",
+      "Ideal %",
+      "Variance",
+    ],
     [
       "Needs",
       data.bucketTotals[BucketType.NEEDS] ?? 0,
@@ -125,10 +135,26 @@ export const exportToExcel = async (
     // Header
     ["KAALBYTE FINANCE — EXPENSE DETAIL", "", "", "", "", "", ""],
     [`${data.month} · ${data.month_range}`, "", "", "", "", "", ""],
-    [`Account: ${userName}${userEmail ? ` · ${userEmail}` : ""}`, "", "", "", "", "", ""],
+    [
+      `Account: ${userName}${userEmail ? ` · ${userEmail}` : ""}`,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ],
     [],
     // Column headers
-    ["#", "Date", "Category", "Description", "Bucket", "Amount (₹)", "% of Spend"],
+    [
+      "#",
+      "Date",
+      "Category",
+      "Description",
+      "Bucket",
+      "Amount (₹)",
+      "% of Spend",
+    ],
     // Data rows
     ...expenseRows,
     // Footer totals

@@ -6,7 +6,6 @@ import { EquityAssetsService } from "../services";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getCurrentUserId } from "../utils/auth";
 
-
 interface EquityAssetsState {
   // State
   assets: EquityAssets[];
@@ -78,8 +77,10 @@ export const useEquityAssetsStore = create<EquityAssetsState>()(
         set({ isLoading: true, error: null });
         try {
           const userId = getCurrentUserId();
-          const assets =
-            await EquityAssetsService.getAssetsByExchange(exchange, userId);
+          const assets = await EquityAssetsService.getAssetsByExchange(
+            exchange,
+            userId,
+          );
 
           if (exchange === Exchange.NSE) {
             set({ nseAssets: assets, isLoading: false });
@@ -169,7 +170,11 @@ export const useEquityAssetsStore = create<EquityAssetsState>()(
         set({ isLoading: true, error: null });
         try {
           const userId = getCurrentUserId();
-          const updated = await EquityAssetsService.updateAsset(id, asset, userId);
+          const updated = await EquityAssetsService.updateAsset(
+            id,
+            asset,
+            userId,
+          );
 
           set((state) => ({
             assets: state.assets.map((a) => (a.id === id ? updated : a)),

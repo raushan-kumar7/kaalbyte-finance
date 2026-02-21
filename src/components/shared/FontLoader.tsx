@@ -46,10 +46,6 @@ const FontLoader = ({ children }: FontLoaderProps) => {
     }
   }, [loaded, error]);
 
-  // if (!loaded && !error) {
-  //   return null;
-  // }
-
   if (!loaded && !error) {
     return <View style={{ flex: 1, backgroundColor: '#010528' }} />; 
   }

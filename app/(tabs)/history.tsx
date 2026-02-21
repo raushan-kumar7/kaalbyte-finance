@@ -21,15 +21,11 @@ import {
   formatMonthRange,
 } from "@/src/utils/history";
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
-
-/** Safely convert a DB date (Date object or ISO string) to "YYYY-MM-DD" */
 const toISODate = (d: Date | string): string => {
   if (typeof d === "string") return d.split("T")[0];
   return d.toISOString().split("T")[0];
 };
 
-/** Shared mapping from a raw DB entry → ExpenseRow for the table */
 const toExpenseRow = (e: {
   id: number;
   date: Date | string;
@@ -51,7 +47,6 @@ const toExpenseRow = (e: {
   bucket: e.bucket,
 });
 
-/** Shared mapping from a raw DB entry → ExpenseEntry for PDF/Excel export */
 const toExportEntry = (e: {
   date: Date | string;
   category: string;
@@ -70,14 +65,11 @@ const toExportEntry = (e: {
   bucket: e.bucket,
 });
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 const History = () => {
   const currentDate = useMemo(() => new Date(), []);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth()); // 0-11
 
-  // ── Local state — does NOT touch the shared store ─────────────────────────
   const [monthlyExpenseSummary, setMonthlyExpenseSummary] =
     useState<MonthlyExpenseTracker | null>(null);
   const [selectedMonthIncome, setSelectedMonthIncome] =
@@ -86,17 +78,14 @@ const History = () => {
   const [exportEntries, setExportEntries] = useState<ExpenseEntry[]>([]);
   const [isLoadingLocal, setIsLoadingLocal] = useState(false);
 
-  // ── Month key ─────────────────────────────────────────────────────────────
   const monthKey = useMemo(
     () => generateMonthKey(selectedYear, selectedMonth),
     [selectedYear, selectedMonth],
   );
 
-  // ── Only used to derive available years for the year selector ─────────────
   const { entries: allEntries } = useAllDailyEntries();
   const { incomes } = useAllMonthlyIncomes();
 
-  // ── Core fetch — called on mount, on month change, and after edit/delete ──
   const fetchMonthData = useCallback(async (signal?: { cancelled: boolean }) => {
     setIsLoadingLocal(true);
     try {
@@ -124,14 +113,12 @@ const History = () => {
     }
   }, [monthKey]);
 
-  // ── Fetch when monthKey changes ───────────────────────────────────────────
   useEffect(() => {
     const signal = { cancelled: false };
     fetchMonthData(signal);
     return () => { signal.cancelled = true; };
   }, [fetchMonthData]);
 
-  // ── onUpdateEntry: called by ExpensesTable when user saves an edit ─────────
   const handleUpdateEntry = useCallback(
     async (id: string, updates: Partial<ExpenseRow>): Promise<boolean> => {
       try {
@@ -157,7 +144,6 @@ const History = () => {
     [fetchMonthData],
   );
 
-  // ── onDeleteEntry: called by ExpensesTable when user confirms delete ───────
   const handleDeleteEntry = useCallback(
     async (id: string): Promise<boolean> => {
       try {
@@ -174,13 +160,11 @@ const History = () => {
     [fetchMonthData],
   );
 
-  // ── Available years ───────────────────────────────────────────────────────
   const years = useMemo(
     () => extractAvailableYears(allEntries, incomes),
     [allEntries, incomes],
   );
 
-  // ── data for MonthlyExpensesTracker (entries as ExpenseRow[]) ─────────────
   const data = useMemo(() => {
     const monthName = MONTH_NAMES[selectedMonth];
     const monthRange = formatMonthRange(monthName, selectedYear, selectedMonth);
@@ -212,13 +196,11 @@ const History = () => {
     [data, exportEntries],
   );
 
-  // ── Total income ──────────────────────────────────────────────────────────
   const totalIncome = useMemo(
     () => calculateTotalIncome(selectedMonthIncome),
     [selectedMonthIncome],
   );
 
-  // ── Month navigation ──────────────────────────────────────────────────────
   const handlePreviousMonth = () => {
     if (selectedMonth === 0) {
       setSelectedMonth(11);
@@ -238,8 +220,7 @@ const History = () => {
       setSelectedMonth((m) => m + 1);
     }
   };
-
-  // ── Render ────────────────────────────────────────────────────────────────
+  
   return (
     <ScreenWrapper bg="bg-brand-900">
       <View className="flex-1">

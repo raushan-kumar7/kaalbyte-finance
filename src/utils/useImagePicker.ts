@@ -1,57 +1,24 @@
-// import * as ImagePicker from 'expo-image-picker';
-// import { Alert } from 'react-native';
-
-// export const useImageUpload = () => {
-//   const pickImage = async (): Promise<string | null> => {
-//     // 1. Request Permissions
-//     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-//     if (status !== 'granted') {
-//       Alert.alert(
-//         'Permission Required', 
-//         'We need access to your gallery to update your profile picture.'
-//       );
-//       return null;
-//     }
-
-//     // 2. Launch Picker
-//     const result = await ImagePicker.launchImageLibraryAsync({
-//       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-//       allowsEditing: true,
-//       aspect: [1, 1], // Square for Profile
-//       quality: 0.7,   // Compression for faster upload
-//     });
-
-//     if (!result.canceled) {
-//       return result.assets[0].uri;
-//     }
-
-//     return null;
-//   };
-
-//   return { pickImage };
-// };
-
-import * as ImagePicker from 'expo-image-picker';
-import { Alert } from 'react-native';
+import * as ImagePicker from "expo-image-picker";
+import { Alert } from "react-native";
 
 export const useImageUpload = () => {
   const pickImage = async (): Promise<string | null> => {
     try {
       // 1. Request Permissions
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (status !== 'granted') {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (status !== "granted") {
         Alert.alert(
-          'Permission Required', 
-          'We need access to your gallery to update your profile picture.'
+          "Permission Required",
+          "We need access to your gallery to update your profile picture.",
         );
         return null;
       }
 
       // 2. Launch Picker
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'], // Updated syntax for newer versions
+        mediaTypes: ["images"], // Updated syntax for newer versions
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.7,

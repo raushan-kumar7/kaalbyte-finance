@@ -19,7 +19,7 @@ export type FieldType =
   | "email"
   | "password"
   | "date"
-  | "month" // Added month type
+  | "month"
   | "select"
   | "textarea"
   | "computed";

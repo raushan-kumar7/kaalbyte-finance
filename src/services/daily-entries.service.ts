@@ -1,12 +1,17 @@
 import { DailyEntry, NewDailyEntry } from "../db/schema";
 import { DailyEntriesRepository } from "../repositories";
-import { BucketType, CategoryLabel, MonthlyExpenseTracker } from "../types/finance";
-import { dailyEntryServiceSchema } from "../validations/finance"; // ✅ Use service schema
+import {
+  BucketType,
+  CategoryLabel,
+  MonthlyExpenseTracker,
+} from "../types/finance";
+import { dailyEntryServiceSchema } from "../validations/finance";
 
 export class DailyEntriesService {
-  // ✅ CORRECTED: Use service schema for validation with userId
-  static async createEntry(data: NewDailyEntry, userId: string): Promise<DailyEntry> {
-    // ✅ Validate with service schema that requires userId
+  static async createEntry(
+    data: NewDailyEntry,
+    userId: string,
+  ): Promise<DailyEntry> {
     await dailyEntryServiceSchema.validate({ ...data, userId });
     return await DailyEntriesRepository.create(data, userId);
   }
@@ -15,21 +20,23 @@ export class DailyEntriesService {
     return await DailyEntriesRepository.getAll(userId);
   }
 
-  static async getEntryById(id: number, userId: string): Promise<DailyEntry | undefined> {
+  static async getEntryById(
+    id: number,
+    userId: string,
+  ): Promise<DailyEntry | undefined> {
     return await DailyEntriesRepository.getById(id, userId);
   }
 
   static async updateEntry(
     id: number,
     data: Partial<NewDailyEntry>,
-    userId: string
+    userId: string,
   ): Promise<DailyEntry> {
     const existing = await DailyEntriesRepository.getById(id, userId);
     if (!existing) {
       throw new Error(`Entry with id ${id} not found or unauthorized`);
     }
 
-    // ✅ Validate updated data with service schema
     await dailyEntryServiceSchema.validate({ ...existing, ...data, userId });
 
     return await DailyEntriesRepository.update(id, data, userId);
@@ -44,13 +51,16 @@ export class DailyEntriesService {
     await DailyEntriesRepository.delete(id, userId);
   }
 
-  static async getEntriesByMonth(month: string, userId: string): Promise<DailyEntry[]> {
+  static async getEntriesByMonth(
+    month: string,
+    userId: string,
+  ): Promise<DailyEntry[]> {
     return await DailyEntriesRepository.getByMonth(month, userId);
   }
 
   static async getMonthlyExpenseSummary(
     month: string,
-    userId: string
+    userId: string,
   ): Promise<MonthlyExpenseTracker> {
     const entries = await this.getEntriesByMonth(month, userId);
 
@@ -64,7 +74,8 @@ export class DailyEntriesService {
     let grandTotal = 0;
 
     entries.forEach((entry) => {
-      categoryTotals[entry.category] = (categoryTotals[entry.category] || 0) + entry.amount;
+      categoryTotals[entry.category] =
+        (categoryTotals[entry.category] || 0) + entry.amount;
       bucketTotals[entry.bucket as BucketType] += entry.amount;
       grandTotal += entry.amount;
     });
@@ -85,15 +96,18 @@ export class DailyEntriesService {
 
   static async getSpendingByCategory(
     category: CategoryLabel,
-    userId: string
+    userId: string,
   ): Promise<number> {
-    const entries = await DailyEntriesRepository.getByCategory(category, userId);
+    const entries = await DailyEntriesRepository.getByCategory(
+      category,
+      userId,
+    );
     return entries.reduce((sum, entry) => sum + entry.amount, 0);
   }
 
   static async getSpendingByBucket(
     bucket: BucketType,
-    userId: string
+    userId: string,
   ): Promise<number> {
     const entries = await DailyEntriesRepository.getByBucket(bucket, userId);
     return entries.reduce((sum, entry) => sum + entry.amount, 0);
@@ -102,12 +116,19 @@ export class DailyEntriesService {
   static async getEntriesByDateRange(
     startDate: Date,
     endDate: Date,
-    userId: string
+    userId: string,
   ): Promise<DailyEntry[]> {
-    return await DailyEntriesRepository.getByDateRange(startDate, endDate, userId);
+    return await DailyEntriesRepository.getByDateRange(
+      startDate,
+      endDate,
+      userId,
+    );
   }
 
-  static async getAverageDailySpending(month: string, userId: string): Promise<number> {
+  static async getAverageDailySpending(
+    month: string,
+    userId: string,
+  ): Promise<number> {
     const entries = await this.getEntriesByMonth(month, userId);
 
     if (entries.length === 0) return 0;
@@ -121,7 +142,7 @@ export class DailyEntriesService {
 
   static async getBucketAllocation(
     month: string,
-    userId: string
+    userId: string,
   ): Promise<Record<BucketType, number>> {
     const summary = await this.getMonthlyExpenseSummary(month, userId);
 

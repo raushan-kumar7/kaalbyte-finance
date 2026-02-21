@@ -29,10 +29,10 @@ export class UserService {
   ): Promise<string> {
     // replaceImage handles both upload and old image cleanup
     const { url } = await CloudinaryService.replaceImage(imageUri, oldImageUrl);
-    
+
     // Update Firestore with new avatar URL
     await this.updateProfile(uid, { avatar: url });
-    
+
     return url;
   }
 

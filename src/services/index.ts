@@ -5,3 +5,4 @@ export * from "./daily-entries.service";
 export * from "./monthly-incomes.service";
 export * from "./digital-assets.service";
 export * from "./equity-assets.service";
+export * from "./sync.service";

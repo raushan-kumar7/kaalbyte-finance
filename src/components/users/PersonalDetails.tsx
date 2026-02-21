@@ -57,20 +57,6 @@ const PersonalDetails = ({ user: propUser, onBack }: PersonalDetailsProps) => {
     }
   }, [currentUser, reset]);
 
-  // const handlePicker = async () => {
-  //   if (!isEditing) {
-  //     showToast.info(
-  //       "Edit Mode Required",
-  //       "Please tap 'Edit Profile' to change your photo.",
-  //     );
-  //     return;
-  //   }
-
-  //   // This calls the handleUpdateAvatar in useUser.tsx
-  //   // Ensure useUser.tsx has the correct import path for useImageUpload
-  //   await updateAvatar();
-  // };
-
   const handlePicker = async () => {
     if (!isEditing) {
       showToast.info(
@@ -95,16 +81,6 @@ const PersonalDetails = ({ user: propUser, onBack }: PersonalDetailsProps) => {
       }
     }
   };
-
-  // const onSave = async (data: any) => {
-  //   console.log("data", data);
-  //   try {
-  //     await updateProfile(data);
-  //     setIsEditing(false);
-  //   } catch (error: any) {
-  //     console.error("Update failed", error);
-  //   }
-  // };
 
   const onSave = async (data: any) => {
     try {

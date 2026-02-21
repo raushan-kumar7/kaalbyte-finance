@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Platform, TouchableOpacity, View } from "react-native";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { Calendar } from "lucide-react-native";
 import { colors } from "@/src/constants/colors";
 import Input from "./Input";
@@ -13,13 +15,22 @@ interface DatePickerProps {
   placeholder?: string;
 }
 
-const DatePicker = ({ label, value, onChange, error, placeholder }: DatePickerProps) => {
+const DatePicker = ({
+  label,
+  value,
+  onChange,
+  error,
+  placeholder,
+}: DatePickerProps) => {
   const [show, setShow] = useState(false);
 
   // Convert string YYYY-MM-DD to Date object for the picker
   const dateValue = value ? new Date(value) : new Date();
 
-  const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+  const handleDateChange = (
+    event: DateTimePickerEvent,
+    selectedDate?: Date,
+  ) => {
     // Hide picker for Android immediately after selection
     if (Platform.OS === "android") setShow(false);
 

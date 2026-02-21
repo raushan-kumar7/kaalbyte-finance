@@ -46,9 +46,7 @@ export const profileUpdateSchema = Yup.object().shape({
   phone: Yup.string()
     .matches(/^[0-9+]{10,15}$/, "Invalid format")
     .optional(),
-  gender: Yup.mixed<Gender>()
-    .oneOf(Object.values(Gender))
-    .optional(),
+  gender: Yup.mixed<Gender>().oneOf(Object.values(Gender)).optional(),
   dateOfBirth: Yup.string()
     .matches(/^\d{4}-\d{2}-\d{2}$/, "Format: YYYY-MM-DD")
     .optional(),

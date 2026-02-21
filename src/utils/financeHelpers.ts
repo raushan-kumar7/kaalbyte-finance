@@ -3,7 +3,6 @@ import {
   MonthlyIncome,
   DigitalGoldOrSilverAssets,
   EquityAssets,
-  BucketType,
 } from "../types/finance";
 
 export const calculateAssetStats = (
@@ -13,7 +12,7 @@ export const calculateAssetStats = (
   const goldVal = gold.reduce((acc, curr) => acc + (curr.gold_value || 0), 0);
   const silverVal = gold.reduce(
     (acc, curr) =>
-      curr.type === "Silver" ? acc + (curr.gold_value || 0) : acc,
+      curr.type === "silver" ? acc + (curr.gold_value || 0) : acc,
     0,
   ); // Using the same interface
   const equityVal = equity.reduce(

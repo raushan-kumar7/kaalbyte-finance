@@ -35,7 +35,7 @@ const ChangePassword = ({ onSuccess }: ChangePasswordProps) => {
       await changePassword(data);
       reset();
       onSuccess();
-    } catch (error: any) {}
+    } catch {}
   };
 
   return (

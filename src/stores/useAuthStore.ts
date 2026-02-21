@@ -63,7 +63,8 @@ export const useAuthStore = create<AuthState>()(
           error: null,
         }),
 
-      setSessions: (sessions: ISession[]) => set({ sessions, isLoading: false }),
+      setSessions: (sessions: ISession[]) =>
+        set({ sessions, isLoading: false }),
 
       removeSession: (sessionId: string) =>
         set((state) => ({

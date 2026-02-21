@@ -16,8 +16,6 @@ import { BucketType } from "@/src/types/finance";
 import { useAuth } from "@/src/hooks";
 import { ExpenseEntry } from "@/src/types/export-data";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface ExportData {
   month: string;
   month_range: string;
@@ -31,8 +29,6 @@ interface ExportButtonProps {
   data: ExportData;
   totalIncome: number;
 }
-
-// ─── Option config ────────────────────────────────────────────────────────────
 
 const EXPORT_OPTIONS = [
   {
@@ -63,8 +59,6 @@ const EXPORT_OPTIONS = [
   },
 ];
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 const ExportButton = ({ data, totalIncome }: ExportButtonProps) => {
   const [showMenu, setShowMenu] = useState(false);
   const [loading, setLoading] = useState<"pdf" | "excel" | null>(null);
@@ -73,8 +67,6 @@ const ExportButton = ({ data, totalIncome }: ExportButtonProps) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const { user } = useAuth();
-
-  // ── Animation helpers ──────────────────────────────────────────────────────
 
   const openMenu = () => {
     setShowMenu(true);
@@ -111,14 +103,13 @@ const ExportButton = ({ data, totalIncome }: ExportButtonProps) => {
     });
   };
 
-  // ── Export handler ─────────────────────────────────────────────────────────
-
   const handleExport = (type: "pdf" | "excel") => {
     closeMenu(async () => {
       setLoading(type);
       try {
         const resolvedName =
-          `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Account Holder";
+          `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
+          "Account Holder";
         const resolvedEmail = user?.email ?? "";
         const payload = { ...data, totalIncome };
 
@@ -131,7 +122,7 @@ const ExportButton = ({ data, totalIncome }: ExportButtonProps) => {
         Alert.alert(
           "Export failed",
           "Something went wrong. Please try again.",
-          [{ text: "OK" }]
+          [{ text: "OK" }],
         );
       } finally {
         setLoading(null);
@@ -139,12 +130,8 @@ const ExportButton = ({ data, totalIncome }: ExportButtonProps) => {
     });
   };
 
-  // ── Derived ────────────────────────────────────────────────────────────────
-
   const surplus = totalIncome - data.grandTotal;
   const isOverBudget = surplus < 0;
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -175,13 +162,15 @@ const ExportButton = ({ data, totalIncome }: ExportButtonProps) => {
         onRequestClose={() => closeMenu()}
       >
         <Animated.View
-          style={{ flex: 1, opacity: fadeAnim, backgroundColor: "rgba(1,5,40,0.88)", justifyContent: "flex-end" }}
+          style={{
+            flex: 1,
+            opacity: fadeAnim,
+            backgroundColor: "rgba(1,5,40,0.88)",
+            justifyContent: "flex-end",
+          }}
         >
           {/* Backdrop tap to close */}
-          <Pressable
-            className="absolute inset-0"
-            onPress={() => closeMenu()}
-          />
+          <Pressable className="absolute inset-0" onPress={() => closeMenu()} />
 
           {/* Sheet panel */}
           <Animated.View
@@ -225,7 +214,8 @@ const ExportButton = ({ data, totalIncome }: ExportButtonProps) => {
                 </View>
                 <View className="flex-1">
                   <Typo className="font-sans-semibold text-sm text-white">
-                    {`${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Account Holder"}
+                    {`${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
+                      "Account Holder"}
                   </Typo>
                   {user?.email ? (
                     <Typo className="font-mono text-[10px] text-text-muted mt-0.5">
@@ -257,9 +247,7 @@ const ExportButton = ({ data, totalIncome }: ExportButtonProps) => {
               </View>
 
               {/* Separator */}
-              {totalIncome > 0 && (
-                <View className="w-px bg-white/5 mx-4" />
-              )}
+              {totalIncome > 0 && <View className="w-px bg-white/5 mx-4" />}
 
               {/* Surplus / Deficit */}
               {totalIncome > 0 && (

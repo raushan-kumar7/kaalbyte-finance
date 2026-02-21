@@ -25,13 +25,11 @@ import {
   useNotificationSettings,
 } from "@/src/hooks";
 
-
 const Notifications = ({ onBack }: { onBack: () => void }) => {
   const { user } = useAuth();
 
   const { settings, toggle } = useNotificationSettings();
 
-  // ── Report format + email sender ──────────────────────────────────────────
   const { reportFormat, setReportFormat, isSending, sendReportEmail } =
     useReportPreference({
       userName:
@@ -39,8 +37,6 @@ const Notifications = ({ onBack }: { onBack: () => void }) => {
         "Account Holder",
       userEmail: user?.email ?? "",
     });
-
-  // ── Shared sub-components ─────────────────────────────────────────────────
 
   const SectionLabel = ({ children }: { children: string }) => (
     <Typo className="text-text-secondary font-mono-bold text-[10px] uppercase tracking-[2px] mb-3 px-1">
@@ -122,8 +118,6 @@ const Notifications = ({ onBack }: { onBack: () => void }) => {
       </TouchableOpacity>
     );
   };
-
-  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <ModalWrapper title="Notifications" onClose={onBack}>
@@ -231,21 +225,20 @@ const Notifications = ({ onBack }: { onBack: () => void }) => {
               {/* Send now button */}
               <TouchableOpacity
                 onPress={() => {
-                  // NOTE: Pass real ExportData from your current month's data
-                  // In production, connect this to your data store / context
-                  // Example: sendReportEmail(currentMonthData)
-                  //
-                  // For now this shows the architecture — wire it up in the
-                  // parent or pass data down as a prop when you integrate.
                   sendReportEmail({
                     month: new Date().toLocaleString("default", {
                       month: "long",
                     }),
-                    month_range: "",
+                    month_range: `${new Date().getFullYear()}`,
                     grandTotal: 0,
                     totalIncome: 0,
-                    bucketTotals: {} as any,
+                    bucketTotals: {
+                      needs: 0,
+                      wants: 0,
+                      savings: 0,
+                    },
                     categoryTotals: {},
+                    entries: [],
                   });
                 }}
                 activeOpacity={0.75}

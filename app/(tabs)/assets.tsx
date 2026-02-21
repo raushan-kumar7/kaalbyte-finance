@@ -41,8 +41,6 @@ import {
 } from "@/src/hooks";
 import type { MonthlyIncomeRow } from "@/src/components/tables/MonthlyIncomeTable";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type ViewMode = "overview" | "manage";
 type ManageTab = "income" | "digital" | "equity";
 
@@ -51,8 +49,6 @@ const MANAGE_TABS: { id: ManageTab; label: string; color: string }[] = [
   { id: "digital", label: "Digital", color: colors.brand[100] },
   { id: "equity",  label: "Equity",  color: colors.success[500] },
 ];
-
-// ─── Section Header ───────────────────────────────────────────────────────────
 
 const SectionHeader = ({
   icon,
@@ -70,8 +66,6 @@ const SectionHeader = ({
     </Typo>
   </View>
 );
-
-// ─── Stat Pill ────────────────────────────────────────────────────────────────
 
 const StatPill = ({
   label,
@@ -106,13 +100,10 @@ const StatPill = ({
   </View>
 );
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 const Assets = () => {
   const [viewMode, setViewMode] = React.useState<ViewMode>("overview");
   const [manageTab, setManageTab] = React.useState<ManageTab>("income");
 
-  // ── Data ──────────────────────────────────────────────────────────────────
   const {
     goldAssets,
     silverAssets,
@@ -135,9 +126,6 @@ const Assets = () => {
     refresh: refreshIncomes,
   } = useAllMonthlyIncomes();
 
-  // ── Map DB rows → MonthlyIncomeRow (camelCase) ────────────────────────────
-  // The DB schema returns otherIncome / totalIncome (camelCase via Drizzle).
-  // MonthlyIncomeTable expects the same camelCase shape.
   const incomes: MonthlyIncomeRow[] = (rawIncomes ?? []).map((r: any) => ({
     id:          r.id,
     userId:      r.userId,
@@ -147,7 +135,6 @@ const Assets = () => {
     totalIncome: r.totalIncome  ?? r.total_income  ?? 0,
   }));
 
-  // ── Actions ───────────────────────────────────────────────────────────────
   const { updateAsset: updateDigital } = useUpdateDigitalAsset();
   const { deleteAsset: deleteDigital } = useDeleteDigitalAsset();
   const { updateAsset: updateEquity }  = useUpdateEquityAsset();
@@ -180,7 +167,6 @@ const Assets = () => {
     [deleteIncome],
   );
 
-  // ── Derived ───────────────────────────────────────────────────────────────
   const goldValue   = goldSummary?.totalValue        ?? 0;
   const silverValue = silverSummary?.totalValue      ?? 0;
   const equityValue = equitySummary?.totalInvestment ?? 0;
@@ -200,7 +186,6 @@ const Assets = () => {
     hour12: true,
   });
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <ScreenWrapper className="px-4">
 

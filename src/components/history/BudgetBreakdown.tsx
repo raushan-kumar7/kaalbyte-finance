@@ -27,19 +27,27 @@ const BudgetBreakdown = ({ income, spent }: Props) => {
       {[BucketType.NEEDS, BucketType.WANTS, BucketType.SAVINGS].map((type) => {
         const percent = getPercentage(type);
         const isOver = percent > 100;
-        
+
         return (
           <View key={type} className="mb-5">
             <View className="flex-row justify-between mb-2">
               <Typo className="font-sans-bold text-white text-sm">{type}</Typo>
-              <Typo className={`font-mono-bold text-xs ${isOver ? 'text-danger-500' : 'text-success-500'}`}>
+              <Typo
+                className={`font-mono-bold text-xs ${isOver ? "text-danger-500" : "text-success-500"}`}
+              >
                 ₹{spent[type].toLocaleString()} / ₹{caps[type].toLocaleString()}
               </Typo>
             </View>
             <View className="h-2 w-full bg-ui-input rounded-full overflow-hidden">
-              <View 
+              <View
                 style={{ width: `${Math.min(percent, 100)}%` }}
-                className={type === BucketType.NEEDS ? "bg-brand-500" : type === BucketType.WANTS ? "bg-gold-500" : "bg-success-500"}
+                className={
+                  type === BucketType.NEEDS
+                    ? "bg-brand-500"
+                    : type === BucketType.WANTS
+                      ? "bg-gold-500"
+                      : "bg-success-500"
+                }
               />
             </View>
           </View>

@@ -3,7 +3,10 @@ import { MonthlyIncomesRepository } from "../repositories";
 import { monthlyIncomeSchema } from "../validations/finance";
 
 export class MonthlyIncomesService {
-  static async createIncome(data: NewMonthlyIncome, userId: string): Promise<MonthlyIncome> {
+  static async createIncome(
+    data: NewMonthlyIncome,
+    userId: string,
+  ): Promise<MonthlyIncome> {
     const totalIncome = (data.salary || 0) + (data.otherIncome || 0);
     const incomeData = { ...data, totalIncome };
 
@@ -16,13 +19,16 @@ export class MonthlyIncomesService {
     return await MonthlyIncomesRepository.getAll(userId);
   }
 
-  static async getIncomeById(id: number, userId: string): Promise<MonthlyIncome | undefined> {
+  static async getIncomeById(
+    id: number,
+    userId: string,
+  ): Promise<MonthlyIncome | undefined> {
     return await MonthlyIncomesRepository.getById(id, userId);
   }
 
   static async getIncomeByMonth(
     month: string,
-    userId: string // ✅ Add userId parameter
+    userId: string,
   ): Promise<MonthlyIncome | undefined> {
     return await MonthlyIncomesRepository.getByMonth(month, userId);
   }
@@ -30,7 +36,7 @@ export class MonthlyIncomesService {
   static async updateIncome(
     id: number,
     data: Partial<NewMonthlyIncome>,
-    userId: string // ✅ Add userId parameter
+    userId: string,
   ): Promise<MonthlyIncome> {
     const existing = await MonthlyIncomesRepository.getById(id, userId);
     if (!existing) {
@@ -38,7 +44,8 @@ export class MonthlyIncomesService {
     }
 
     const salary = data.salary !== undefined ? data.salary : existing.salary;
-    const otherIncome = data.otherIncome !== undefined ? data.otherIncome : existing.otherIncome;
+    const otherIncome =
+      data.otherIncome !== undefined ? data.otherIncome : existing.otherIncome;
     const totalIncome = salary + otherIncome;
 
     const updateData = { ...data, totalIncome };
@@ -60,20 +67,24 @@ export class MonthlyIncomesService {
   static async upsertIncome(
     month: string,
     data: NewMonthlyIncome,
-    userId: string // ✅ Add userId parameter
+    userId: string,
   ): Promise<MonthlyIncome> {
     const totalIncome = (data.salary || 0) + (data.otherIncome || 0);
     const incomeData = { ...data, month, totalIncome };
 
     await monthlyIncomeSchema.validate({ ...incomeData, userId });
 
-    return await MonthlyIncomesRepository.upsertByMonth(month, incomeData, userId);
+    return await MonthlyIncomesRepository.upsertByMonth(
+      month,
+      incomeData,
+      userId,
+    );
   }
 
   static async getYearlyIncome(year: number, userId: string): Promise<number> {
     const allIncomes = await MonthlyIncomesRepository.getAll(userId);
     const yearIncomes = allIncomes.filter((income) =>
-      income.month.startsWith(year.toString())
+      income.month.startsWith(year.toString()),
     );
 
     return yearIncomes.reduce((sum, income) => sum + income.totalIncome, 0);
@@ -84,13 +95,16 @@ export class MonthlyIncomesService {
 
     if (allIncomes.length === 0) return 0;
 
-    const total = allIncomes.reduce((sum, income) => sum + income.totalIncome, 0);
+    const total = allIncomes.reduce(
+      (sum, income) => sum + income.totalIncome,
+      0,
+    );
     return total / allIncomes.length;
   }
 
   static async getIncomeBreakdown(
     month: string,
-    userId: string // ✅ Add userId parameter
+    userId: string,
   ): Promise<{
     salary: number;
     otherIncome: number;
@@ -111,7 +125,10 @@ export class MonthlyIncomesService {
     };
   }
 
-  static async getIncomeTrend(months: number = 6, userId: string): Promise<MonthlyIncome[]> {
+  static async getIncomeTrend(
+    months: number = 6,
+    userId: string,
+  ): Promise<MonthlyIncome[]> {
     const allIncomes = await MonthlyIncomesRepository.getAll(userId);
     return allIncomes.slice(0, months);
   }

@@ -1,29 +1,3 @@
-// import React from "react";
-// import { View } from "react-native";
-// import { colors } from "@/src/constants/colors";
-// import { TrendingDown } from "lucide-react-native";
-// import { WeeklyBarChart } from "../charts";
-// import { Typo } from "../ui";
-
-// const WeeklyActivity = () => (
-//   <View className="gap-y-6">
-//     <WeeklyBarChart />
-//     <View className="bg-success-500/5 rounded-[24px] p-5 border border-success-500/10 flex-row items-center">
-//       <View className="bg-success-500/20 p-3 rounded-2xl mr-4">
-//         <TrendingDown size={20} color={colors.success[500]} />
-//       </View>
-//       <View className="flex-1">
-//         <Typo className="text-white font-sans-medium leading-5">
-//           Your spending is <Typo className="text-success-500">8% lower</Typo>{" "}
-//           than last week. Keep it up!
-//         </Typo>
-//       </View>
-//     </View>
-//   </View>
-// );
-
-// export default WeeklyActivity;
-
 import React from "react";
 import { View, ActivityIndicator } from "react-native";
 import { colors } from "@/src/constants/colors";
@@ -34,7 +8,6 @@ import { useCurrentMonthEntries } from "@/src/hooks";
 
 const WeeklyActivity = () => {
   const { entries, isLoading, error } = useCurrentMonthEntries();
-  // Calculate weekly totals (last 7 days from today)
   
   const weeklyData = React.useMemo(() => {
     const today = new Date();

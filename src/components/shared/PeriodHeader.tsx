@@ -28,8 +28,6 @@ const PeriodHeader = ({ activeFilter, onFilterChange }: Props) => {
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
-      // Moves the highlight by multiplying index by 100%
-      // Use 'as any' to bypass the strict Reanimated transform type restriction on strings
       transform: [{ translateX: (animationValue.value * 100) + '%' } as any],
     };
   });

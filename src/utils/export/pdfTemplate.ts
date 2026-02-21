@@ -109,8 +109,6 @@ export function buildPdfHtml(
   </div>
   <div class="accent-bar"></div>`;
 
-
-
   // ── Reusable footer (page number injected per page) ─────────────────────────
   const buildFooterHTML = (page: string) => `
   <div class="doc-footer">

@@ -21,7 +21,7 @@ export const useAuth = () => {
     setSessions,
     removeSession,
     removeAllOtherSessions,
-    setHasSeenLanding, // ✅ Added
+    setHasSeenLanding,
   } = useAuthStore();
 
   // --- Registration ---
@@ -35,7 +35,7 @@ export const useAuth = () => {
         showToast.success("Account created successfully");
         if (profile) {
           setSession(profile);
-          setHasSeenLanding(true); // ✅ Mark landing as seen on signup
+          setHasSeenLanding(true);
         }
       } catch (e: any) {
         const msg = e.message || "An error occurred during signup";
@@ -59,7 +59,7 @@ export const useAuth = () => {
         const profile = await AuthService.getCurrentUserProfile();
         if (profile) {
           setSession(profile);
-          setHasSeenLanding(true); // ✅ Mark landing as seen on signin
+          setHasSeenLanding(true);
           showToast.success("Welcome back!");
         } else {
           throw new Error("Profile not found");

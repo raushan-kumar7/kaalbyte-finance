@@ -355,7 +355,7 @@ const ExpensesTable = ({
         </>
       )}
 
-      {/* ── Edit Modal ───────────────────────────────────────────────────────── */}
+      {/* ── Edit Modal ──── */}
       {editingEntry && (
         <EditExpenseModal
           entry={editingEntry}
@@ -365,7 +365,7 @@ const ExpensesTable = ({
         />
       )}
 
-      {/* ── Delete Confirmation Modal ─────────────────────────────────────── */}
+      {/* ── Delete Confirmation Modal ──── */}
       <ConfirmDeleteModal
         visible={pendingDelete !== null}
         amount={pendingDelete?.amount ?? 0}

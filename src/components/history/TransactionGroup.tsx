@@ -57,9 +57,7 @@ const TransactionGroup = ({ date, total, items }: Props) => {
                 )}
               </View>
             </View>
-            <Typo className="text-white font-mono-bold">
-              ₹{item.amount}
-            </Typo>
+            <Typo className="text-white font-mono-bold">₹{item.amount}</Typo>
           </View>
         ))}
       </View>
