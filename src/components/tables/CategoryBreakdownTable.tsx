@@ -1,23 +1,23 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, TouchableOpacity } from "react-native";
 import { ChevronDown, ChevronRight } from "lucide-react-native";
-import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { colors } from "@/src/constants/colors";
 import { BucketType, CATEGORIES } from "@/src/types/finance";
 import { Typo } from "../ui";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CategoryBreakdownTableProps {
   categoryTotals: Record<string, number>;
   bucketTotals: Record<BucketType, number>;
   grandTotal: number;
   totalIncome?: number;
-  /** Optional: show entry count per category */
   entryCounts?: Record<string, number>;
 }
-
-// ─── Bucket config ────────────────────────────────────────────────────────────
 
 const BUCKET_META: Record<
   BucketType,
@@ -45,8 +45,6 @@ const BUCKET_META: Record<
     border: `${colors.gold[500]}25`,
   },
 };
-
-// ─── Category Row ─────────────────────────────────────────────────────────────
 
 interface CategoryRowProps {
   category: string;
@@ -118,10 +116,7 @@ const CategoryRow = ({
           <Typo className="text-white font-sans-bold text-base">
             ₹{amount.toLocaleString("en-IN")}
           </Typo>
-          <Typo
-            className="font-mono text-[10px] mt-0.5"
-            style={{ color }}
-          >
+          <Typo className="font-mono text-[10px] mt-0.5" style={{ color }}>
             {spendPct.toFixed(1)}%
           </Typo>
         </View>
@@ -130,14 +125,15 @@ const CategoryRow = ({
       {/* Progress bar */}
       <View className="h-1 bg-white/5 rounded-full overflow-hidden ml-3">
         <Animated.View
-          style={[barStyle, { height: "100%", backgroundColor: color, borderRadius: 99 }]}
+          style={[
+            barStyle,
+            { height: "100%", backgroundColor: color, borderRadius: 99 },
+          ]}
         />
       </View>
     </Animated.View>
   );
 };
-
-// ─── Bucket Section ───────────────────────────────────────────────────────────
 
 interface BucketSectionProps {
   bucket: BucketType;
@@ -250,8 +246,6 @@ const BucketSection = ({
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 const CategoryBreakdownTable = ({
   categoryTotals,
   bucketTotals,
@@ -261,19 +255,21 @@ const CategoryBreakdownTable = ({
 }: CategoryBreakdownTableProps) => {
   // Group categories by bucket, sorted by amount desc
   const groupedByBucket = useMemo(() => {
-    return [BucketType.NEEDS, BucketType.WANTS, BucketType.SAVINGS].map((bucket) => {
-      const cats = Object.values(CATEGORIES)
-        .filter((cat) => cat.bucket === bucket)
-        .map((cat) => ({
-          name: cat.label,
-          amount: categoryTotals[cat.label] ?? 0,
-          entryCount: entryCounts?.[cat.label],
-        }))
-        .filter((c) => c.amount > 0)
-        .sort((a, b) => b.amount - a.amount);
+    return [BucketType.NEEDS, BucketType.WANTS, BucketType.SAVINGS].map(
+      (bucket) => {
+        const cats = Object.values(CATEGORIES)
+          .filter((cat) => cat.bucket === bucket)
+          .map((cat) => ({
+            name: cat.label,
+            amount: categoryTotals[cat.label] ?? 0,
+            entryCount: entryCounts?.[cat.label],
+          }))
+          .filter((c) => c.amount > 0)
+          .sort((a, b) => b.amount - a.amount);
 
-      return { bucket, categories: cats };
-    });
+        return { bucket, categories: cats };
+      },
+    );
   }, [categoryTotals, entryCounts]);
 
   let rowIndex = 0;
@@ -282,7 +278,10 @@ const CategoryBreakdownTable = ({
     <View className="px-6 pb-8">
       {/* Section header */}
       <View className="flex-row items-center justify-between mb-4">
-        <Typo variant="muted" className="font-mono text-[10px] uppercase tracking-widest">
+        <Typo
+          variant="muted"
+          className="font-mono text-[10px] uppercase tracking-widest"
+        >
           Category Breakdown
         </Typo>
         <Typo variant="muted" className="font-mono text-[10px]">

@@ -1,6 +1,12 @@
 import React, { useState } from "react";
 import { View, TouchableOpacity, ActivityIndicator, Modal } from "react-native";
-import { Pencil, Trash2, IndianRupee, FileText, CalendarDays } from "lucide-react-native";
+import {
+  Pencil,
+  Trash2,
+  IndianRupee,
+  FileText,
+  CalendarDays,
+} from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors } from "@/src/constants/colors";
 import { BucketType, CATEGORIES } from "@/src/types/finance";
@@ -9,15 +15,11 @@ import { ModalWrapper } from "../shared";
 import { dailyEntrySchema } from "@/src/validations/finance";
 import { FieldConfig, Form } from "../forms";
 import { showToast } from "@/src/utils/toast";
-import {ConfirmDeleteModal} from "../modals"
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { ConfirmDeleteModal } from "../modals";
 
 export interface ExpenseRow {
   id: string;
-  /** ISO date string e.g. "2025-01-15" — used as the editable date value */
   rawDate: string;
-  /** Human-readable display date e.g. "15 Jan 2025" — shown in the table */
   date: string;
   category: string;
   description: string;
@@ -28,13 +30,17 @@ export interface ExpenseRow {
 interface ExpensesTableProps {
   entries: ExpenseRow[];
   isLoading?: boolean;
-  onUpdateEntry?: (id: string, updates: Partial<ExpenseRow>) => Promise<boolean>;
+  onUpdateEntry?: (
+    id: string,
+    updates: Partial<ExpenseRow>,
+  ) => Promise<boolean>;
   onDeleteEntry?: (id: string) => Promise<boolean>;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const BUCKET_CONFIG: Record<BucketType, { label: string; color: string; bg: string }> = {
+const BUCKET_CONFIG: Record<
+  BucketType,
+  { label: string; color: string; bg: string }
+> = {
   [BucketType.NEEDS]: {
     label: "Need",
     color: colors.success[500],
@@ -57,8 +63,6 @@ const CATEGORY_OPTIONS = Object.values(CATEGORIES).map((c) => ({
   value: c.label,
 }));
 
-// ─── Edit Modal (mirrors AddDailyExpense structure exactly) ───────────────────
-
 interface EditExpenseModalProps {
   entry: ExpenseRow;
   onSave: (updates: Partial<ExpenseRow>) => Promise<void>;
@@ -66,12 +70,12 @@ interface EditExpenseModalProps {
   isSaving: boolean;
 }
 
-const EditExpenseModal = ({ entry, onSave, onClose, isSaving }: EditExpenseModalProps) => {
-  /**
-   * Form fields mirror AddDailyExpense — only "date" becomes read-only
-   * since editing the date of a historical entry would affect month grouping.
-   * We render a disabled Input for date instead of the date field type.
-   */
+const EditExpenseModal = ({
+  entry,
+  onSave,
+  onClose,
+  isSaving,
+}: EditExpenseModalProps) => {
   const formFields: FieldConfig[] = [
     {
       name: "category",
@@ -127,7 +131,9 @@ const EditExpenseModal = ({ entry, onSave, onClose, isSaving }: EditExpenseModal
             <Typo className="font-mono text-[9px] text-text-muted uppercase tracking-widest mb-0.5">
               Date — read only
             </Typo>
-            <Typo className="font-mono text-sm text-white/50">{entry.date}</Typo>
+            <Typo className="font-mono text-sm text-white/50">
+              {entry.date}
+            </Typo>
           </View>
           <View className="px-2 py-1 rounded-lg bg-white/5 border border-white/5">
             <Typo className="font-mono text-[9px] text-text-muted uppercase tracking-wider">
@@ -152,8 +158,6 @@ const EditExpenseModal = ({ entry, onSave, onClose, isSaving }: EditExpenseModal
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 const ExpensesTable = ({
   entries,
   isLoading = false,
@@ -164,8 +168,6 @@ const ExpensesTable = ({
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ExpenseRow | null>(null);
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
 
   const handleSave = async (updates: Partial<ExpenseRow>) => {
     if (!editingEntry || !onUpdateEntry) return;
@@ -180,12 +182,10 @@ const ExpensesTable = ({
     }
   };
 
-  // Opens the custom confirm modal instead of Alert.alert
   const handleDelete = (entry: ExpenseRow) => {
     setPendingDelete(entry);
   };
 
-  // Called when user taps "Yes, Delete" inside ConfirmDeleteModal
   const handleConfirmDelete = async () => {
     if (!pendingDelete || !onDeleteEntry) return;
     setDeletingId(pendingDelete.id);
@@ -199,26 +199,28 @@ const ExpensesTable = ({
     }
   };
 
-  // ── Loading ─────────────────────────────────────────────────────────────────
-
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center py-16">
         <ActivityIndicator size="large" color={colors.gold[500]} />
-        <Typo variant="muted" className="font-mono text-xs mt-4 uppercase tracking-widest">
+        <Typo
+          variant="muted"
+          className="font-mono text-xs mt-4 uppercase tracking-widest"
+        >
           Loading Entries...
         </Typo>
       </View>
     );
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
-
   return (
     <View className="px-6 pb-8">
-      {/* ── Section header ──────────────────────────────────────────────────── */}
+      {/* ── Section header ──────── */}
       <View className="flex-row items-center justify-between mb-4">
-        <Typo variant="muted" className="font-mono text-[10px] uppercase tracking-widest">
+        <Typo
+          variant="muted"
+          className="font-mono text-[10px] uppercase tracking-widest"
+        >
           All Entries
         </Typo>
         <View className="bg-brand-800 px-3 py-1.5 rounded-xl border border-white/5">
@@ -228,7 +230,7 @@ const ExpensesTable = ({
         </View>
       </View>
 
-      {/* ── Empty state ─────────────────────────────────────────────────────── */}
+      {/* ── Empty state ──── */}
       {entries.length === 0 ? (
         <View className="bg-brand-800 rounded-[28px] border border-white/5 py-14 items-center">
           <Typo variant="muted" className="font-mono text-sm">
@@ -237,7 +239,7 @@ const ExpensesTable = ({
         </View>
       ) : (
         <>
-          {/* ── Column labels ─────────────────────────────────────────────── */}
+          {/* ── Column labels --─ */}
           <View className="flex-row items-center px-4 pb-2 mb-1">
             <Typo
               variant="muted"
@@ -255,7 +257,7 @@ const ExpensesTable = ({
             {(onUpdateEntry || onDeleteEntry) && <View style={{ width: 68 }} />}
           </View>
 
-          {/* ── Rows ──────────────────────────────────────────────────────── */}
+          {/* ── Rows ────────────── */}
           <View className="bg-brand-800 rounded-[28px] border border-white/5 overflow-hidden">
             {entries.map((entry, index) => {
               const bucketCfg = BUCKET_CONFIG[entry.bucket];
@@ -270,79 +272,82 @@ const ExpensesTable = ({
                       !isLast ? "border-b border-white/[0.04]" : ""
                     }`}
                   >
-                  {/* ── Left: category, description, date ─────────────────── */}
-                  <View className="flex-1 mr-2">
-                    {/* Row 1: category name + bucket pill */}
-                    <View className="flex-row items-center gap-2 mb-0.5 flex-wrap">
-                      <Typo className="text-white font-sans-bold text-[13px]">
-                        {entry.category}
-                      </Typo>
-                      <View
-                        className="px-2 py-0.5 rounded-lg"
-                        style={{ backgroundColor: bucketCfg.bg }}
-                      >
-                        <Typo
-                          className="font-mono text-[8px] uppercase tracking-wider"
-                          style={{ color: bucketCfg.color }}
-                        >
-                          {bucketCfg.label}
+                    {/* ── Left: category, description, date ─────────────────── */}
+                    <View className="flex-1 mr-2">
+                      {/* Row 1: category name + bucket pill */}
+                      <View className="flex-row items-center gap-2 mb-0.5 flex-wrap">
+                        <Typo className="text-white font-sans-bold text-[13px]">
+                          {entry.category}
                         </Typo>
+                        <View
+                          className="px-2 py-0.5 rounded-lg"
+                          style={{ backgroundColor: bucketCfg.bg }}
+                        >
+                          <Typo
+                            className="font-mono text-[8px] uppercase tracking-wider"
+                            style={{ color: bucketCfg.color }}
+                          >
+                            {bucketCfg.label}
+                          </Typo>
+                        </View>
                       </View>
+
+                      {/* Row 2: description */}
+                      <Typo
+                        variant="muted"
+                        className="text-[11px] font-mono leading-4"
+                        numberOfLines={1}
+                      >
+                        {entry.description}
+                      </Typo>
+
+                      {/* Row 3: date */}
+                      <Typo
+                        className="text-[10px] font-mono mt-0.5"
+                        style={{ color: colors.text.muted + "80" }}
+                      >
+                        {entry.date}
+                      </Typo>
                     </View>
 
-                    {/* Row 2: description */}
-                    <Typo
-                      variant="muted"
-                      className="text-[11px] font-mono leading-4"
-                      numberOfLines={1}
-                    >
-                      {entry.description}
+                    {/* ── Amount ─────────────────────────────────────────────── */}
+                    <Typo className="text-white font-sans-bold text-[15px] w-24 text-right mr-3">
+                      ₹{entry.amount.toLocaleString("en-IN")}
                     </Typo>
 
-                    {/* Row 3: date */}
-                    <Typo
-                      className="text-[10px] font-mono mt-0.5"
-                      style={{ color: colors.text.muted + "80" }}
-                    >
-                      {entry.date}
-                    </Typo>
-                  </View>
+                    {/* ── Action buttons ─────────────────────────────────────── */}
+                    {(onUpdateEntry || onDeleteEntry) && (
+                      <View className="flex-row gap-2">
+                        {onUpdateEntry && (
+                          <TouchableOpacity
+                            onPress={() => setEditingEntry(entry)}
+                            activeOpacity={0.7}
+                            className="w-8 h-8 rounded-xl bg-brand-500/10 border border-brand-500/20 items-center justify-center"
+                          >
+                            <Pencil size={13} color={colors.brand[500]} />
+                          </TouchableOpacity>
+                        )}
 
-                  {/* ── Amount ─────────────────────────────────────────────── */}
-                  <Typo className="text-white font-sans-bold text-[15px] w-24 text-right mr-3">
-                    ₹{entry.amount.toLocaleString("en-IN")}
-                  </Typo>
-
-                  {/* ── Action buttons ─────────────────────────────────────── */}
-                  {(onUpdateEntry || onDeleteEntry) && (
-                    <View className="flex-row gap-2">
-                      {onUpdateEntry && (
-                        <TouchableOpacity
-                          onPress={() => setEditingEntry(entry)}
-                          activeOpacity={0.7}
-                          className="w-8 h-8 rounded-xl bg-brand-500/10 border border-brand-500/20 items-center justify-center"
-                        >
-                          <Pencil size={13} color={colors.brand[500]} />
-                        </TouchableOpacity>
-                      )}
-
-                      {onDeleteEntry && (
-                        <TouchableOpacity
-                          onPress={() => handleDelete(entry)}
-                          disabled={isDeleting}
-                          activeOpacity={0.7}
-                          className="w-8 h-8 rounded-xl bg-danger-500/10 border border-danger-500/20 items-center justify-center"
-                        >
-                          {isDeleting ? (
-                            <ActivityIndicator size="small" color={colors.danger[500]} />
-                          ) : (
-                            <Trash2 size={13} color={colors.danger[500]} />
-                          )}
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
-                </Animated.View>
+                        {onDeleteEntry && (
+                          <TouchableOpacity
+                            onPress={() => handleDelete(entry)}
+                            disabled={isDeleting}
+                            activeOpacity={0.7}
+                            className="w-8 h-8 rounded-xl bg-danger-500/10 border border-danger-500/20 items-center justify-center"
+                          >
+                            {isDeleting ? (
+                              <ActivityIndicator
+                                size="small"
+                                color={colors.danger[500]}
+                              />
+                            ) : (
+                              <Trash2 size={13} color={colors.danger[500]} />
+                            )}
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                  </Animated.View>
                 </View>
               );
             })}

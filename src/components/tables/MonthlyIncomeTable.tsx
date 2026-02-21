@@ -13,18 +13,15 @@ import { colors } from "@/src/constants/colors";
 import { Typo } from "../ui";
 import { ModalWrapper } from "../shared";
 import { showToast } from "@/src/utils/toast";
-import {ConfirmDeleteModal} from "../modals";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-// Uses camelCase to match the DB schema (otherIncome, totalIncome)
+import { ConfirmDeleteModal } from "../modals";
 
 export interface MonthlyIncomeRow {
   id: number;
   userId?: string;
   month: string;
   salary: number;
-  otherIncome: number;   // ← camelCase (DB)
-  totalIncome: number;   // ← camelCase (DB)
+  otherIncome: number;
+  totalIncome: number;
 }
 
 export interface MonthlyIncomeTableProps {
@@ -32,7 +29,7 @@ export interface MonthlyIncomeTableProps {
   isLoading?: boolean;
   onUpdate: (
     id: number,
-    updates: Partial<Pick<MonthlyIncomeRow, "salary" | "otherIncome">>
+    updates: Partial<Pick<MonthlyIncomeRow, "salary" | "otherIncome">>,
   ) => Promise<boolean>;
   onDelete: (id: number) => Promise<boolean>;
 }
@@ -41,8 +38,6 @@ type EditForm = {
   salary: string;
   otherIncome: string;
 };
-
-// ─── Edit Form ────────────────────────────────────────────────────────────────
 
 const EditIncomeForm = ({
   form,
@@ -123,7 +118,10 @@ const EditIncomeForm = ({
         >
           Total Income
         </Typo>
-        <Typo className="font-sans-bold text-xl" style={{ color: colors.gold[500] }}>
+        <Typo
+          className="font-sans-bold text-xl"
+          style={{ color: colors.gold[500] }}
+        >
           ₹{total.toLocaleString("en-IN")}
         </Typo>
       </View>
@@ -156,8 +154,6 @@ const EditIncomeForm = ({
   );
 };
 
-// ─── Row ──────────────────────────────────────────────────────────────────────
-
 const IncomeRow = ({
   item,
   index,
@@ -181,7 +177,9 @@ const IncomeRow = ({
       }}
     >
       {/* Top row: month chip + actions */}
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+      <View
+        style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}
+      >
         <View
           style={{
             backgroundColor: `${colors.brand[500]}20`,
@@ -204,8 +202,11 @@ const IncomeRow = ({
           onPress={onEdit}
           activeOpacity={0.7}
           style={{
-            width: 32, height: 32, borderRadius: 10,
-            alignItems: "center", justifyContent: "center",
+            width: 32,
+            height: 32,
+            borderRadius: 10,
+            alignItems: "center",
+            justifyContent: "center",
             backgroundColor: `${colors.brand[500]}18`,
             marginRight: 8,
           }}
@@ -216,8 +217,11 @@ const IncomeRow = ({
           onPress={onDelete}
           activeOpacity={0.7}
           style={{
-            width: 32, height: 32, borderRadius: 10,
-            alignItems: "center", justifyContent: "center",
+            width: 32,
+            height: 32,
+            borderRadius: 10,
+            alignItems: "center",
+            justifyContent: "center",
             backgroundColor: `${colors.danger[500]}18`,
           }}
         >
@@ -228,9 +232,24 @@ const IncomeRow = ({
       {/* Breakdown */}
       <View style={{ flexDirection: "row", gap: 8 }}>
         {[
-          { label: "Salary", value: item.salary,      color: colors.success[500], bold: false },
-          { label: "Other",  value: item.otherIncome,  color: colors.gold[500],   bold: false },
-          { label: "Total",  value: item.totalIncome,  color: colors.white,        bold: true  },
+          {
+            label: "Salary",
+            value: item.salary,
+            color: colors.success[500],
+            bold: false,
+          },
+          {
+            label: "Other",
+            value: item.otherIncome,
+            color: colors.gold[500],
+            bold: false,
+          },
+          {
+            label: "Total",
+            value: item.totalIncome,
+            color: colors.white,
+            bold: true,
+          },
         ].map(({ label, value, color, bold }) => (
           <View
             key={label}
@@ -260,8 +279,6 @@ const IncomeRow = ({
   </Animated.View>
 );
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-
 const MonthlyIncomeTable = ({
   incomes,
   isLoading = false,
@@ -272,11 +289,13 @@ const MonthlyIncomeTable = ({
   const [form, setForm] = useState<EditForm>({ salary: "", otherIncome: "" });
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<number | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<MonthlyIncomeRow | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<MonthlyIncomeRow | null>(
+    null,
+  );
 
   const openEdit = (item: MonthlyIncomeRow) => {
     setForm({
-      salary:      String(item.salary      ?? 0),
+      salary: String(item.salary ?? 0),
       otherIncome: String(item.otherIncome ?? 0),
     });
     setEditTarget(item);
@@ -286,7 +305,7 @@ const MonthlyIncomeTable = ({
     if (!editTarget) return;
     setIsSaving(true);
     const ok = await onUpdate(editTarget.id, {
-      salary:      Number(form.salary)      || 0,
+      salary: Number(form.salary) || 0,
       otherIncome: Number(form.otherIncome) || 0,
     });
     setIsSaving(false);
@@ -311,30 +330,45 @@ const MonthlyIncomeTable = ({
     }
   };
 
-  if (isLoading) return (
-    <View style={{ padding: 40, alignItems: "center" }}>
-      <ActivityIndicator size="large" color={colors.gold[500]} />
-    </View>
-  );
-
-  if (!incomes.length) return (
-    <Animated.View entering={FadeIn.duration(300)} style={{ alignItems: "center", padding: 40 }}>
-      <View
-        style={{
-          width: 52, height: 52, borderRadius: 18,
-          backgroundColor: `${colors.gold[500]}12`,
-          alignItems: "center", justifyContent: "center",
-          marginBottom: 12, borderWidth: 1, borderColor: `${colors.gold[500]}20`,
-        }}
-      >
-        <TrendingUp size={24} color={colors.gold[500]} strokeWidth={1.5} />
+  if (isLoading)
+    return (
+      <View style={{ padding: 40, alignItems: "center" }}>
+        <ActivityIndicator size="large" color={colors.gold[500]} />
       </View>
-      <Typo className="text-white font-sans-medium text-sm mb-1">No income records</Typo>
-      <Typo className="font-mono text-[11px]" style={{ color: colors.text.muted }}>
-        Add your first monthly income
-      </Typo>
-    </Animated.View>
-  );
+    );
+
+  if (!incomes.length)
+    return (
+      <Animated.View
+        entering={FadeIn.duration(300)}
+        style={{ alignItems: "center", padding: 40 }}
+      >
+        <View
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: 18,
+            backgroundColor: `${colors.gold[500]}12`,
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 12,
+            borderWidth: 1,
+            borderColor: `${colors.gold[500]}20`,
+          }}
+        >
+          <TrendingUp size={24} color={colors.gold[500]} strokeWidth={1.5} />
+        </View>
+        <Typo className="text-white font-sans-medium text-sm mb-1">
+          No income records
+        </Typo>
+        <Typo
+          className="font-mono text-[11px]"
+          style={{ color: colors.text.muted }}
+        >
+          Add your first monthly income
+        </Typo>
+      </Animated.View>
+    );
 
   return (
     <>
@@ -360,11 +394,15 @@ const MonthlyIncomeTable = ({
         transparent
         animationType="slide"
         statusBarTranslucent
-        onRequestClose={() => { if (!isSaving) setEditTarget(null); }}
+        onRequestClose={() => {
+          if (!isSaving) setEditTarget(null);
+        }}
       >
         <ModalWrapper
           title={`Edit Income · ${editTarget?.month ?? ""}`}
-          onClose={() => { if (!isSaving) setEditTarget(null); }}
+          onClose={() => {
+            if (!isSaving) setEditTarget(null);
+          }}
         >
           <EditIncomeForm
             form={form}
@@ -383,7 +421,9 @@ const MonthlyIncomeTable = ({
         category={`Salary ₹${(pendingDelete?.salary ?? 0).toLocaleString("en-IN")} · Other ₹${(pendingDelete?.otherIncome ?? 0).toLocaleString("en-IN")}`}
         isDeleting={isDeletingId !== null}
         onConfirm={handleConfirmDelete}
-        onCancel={() => { if (!isDeletingId) setPendingDelete(null); }}
+        onCancel={() => {
+          if (!isDeletingId) setPendingDelete(null);
+        }}
       />
     </>
   );

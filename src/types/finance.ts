@@ -1,7 +1,3 @@
-// ============================================
-// UPDATED TYPE DEFINITIONS
-// ============================================
-
 export enum Exchange {
   NSE = "nse",
   BSE = "bse",
@@ -84,10 +80,9 @@ export const CATEGORIES = {
 export type CategoryKey = keyof typeof CATEGORIES;
 export type CategoryLabel = (typeof CATEGORIES)[CategoryKey]["label"];
 
-// ✅ UPDATED INTERFACES WITH userId
 export interface DailyEntry {
   id: number;
-  userId: string; // ✅ ADD THIS
+  userId: string;
   date: Date;
   category: CategoryLabel;
   description: string;
@@ -97,7 +92,7 @@ export interface DailyEntry {
 
 export interface MonthlyIncome {
   id: number;
-  userId: string; // ✅ ADD THIS
+  userId: string;
   month: string;
   salary: number;
   other_income: number;
@@ -106,7 +101,7 @@ export interface MonthlyIncome {
 
 export interface DigitalGoldOrSilverAssets {
   id: number;
-  userId: string; // ✅ ADD THIS
+  userId: string;
   date: Date;
   type: DigitalGoldOrSilverAssetType;
   platform: string;
@@ -119,7 +114,7 @@ export interface DigitalGoldOrSilverAssets {
 
 export interface EquityAssets {
   id: number;
-  userId: string; // ✅ ADD THIS
+  userId: string;
   date: Date;
   company: string;
   exchange: Exchange;

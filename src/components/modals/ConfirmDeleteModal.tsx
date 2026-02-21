@@ -21,8 +21,6 @@ import Animated, {
 import { colors } from "@/src/constants/colors";
 import { Typo } from "../ui";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface ConfirmDeleteModalProps {
   visible: boolean;
   amount: number;
@@ -33,18 +31,21 @@ interface ConfirmDeleteModalProps {
   onCancel: () => void;
 }
 
-// ─── Pulsing icon ─────────────────────────────────────────────────────────────
-
 const PulsingIcon = () => {
   const scale = useSharedValue(1);
   useEffect(() => {
     scale.value = withRepeat(
-      withSequence(withTiming(1.15, { duration: 650 }), withTiming(1, { duration: 650 })),
+      withSequence(
+        withTiming(1.15, { duration: 650 }),
+        withTiming(1, { duration: 650 }),
+      ),
       -1,
       false,
     );
   }, [scale]);
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   return (
     <Animated.View
@@ -67,8 +68,6 @@ const PulsingIcon = () => {
   );
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 const ConfirmDeleteModal = ({
   visible,
   amount,
@@ -89,7 +88,11 @@ const ConfirmDeleteModal = ({
       <Animated.View
         entering={FadeIn.duration(180)}
         exiting={FadeOut.duration(160)}
-        style={{ flex: 1, backgroundColor: "rgba(1,5,40,0.82)", justifyContent: "flex-end" }}
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(1,5,40,0.82)",
+          justifyContent: "flex-end",
+        }}
       >
         <Pressable
           style={{ position: "absolute", inset: 0 }}
@@ -112,18 +115,42 @@ const ConfirmDeleteModal = ({
         >
           {/* Drag handle */}
           <View style={{ alignItems: "center", marginBottom: 16 }}>
-            <View style={{ width: 36, height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.12)" }} />
+            <View
+              style={{
+                width: 36,
+                height: 3,
+                borderRadius: 2,
+                backgroundColor: "rgba(255,255,255,0.12)",
+              }}
+            />
           </View>
 
           {/* ── Header row: icon + title + close ─────────────────────── */}
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 14,
+            }}
+          >
             <PulsingIcon />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Typo className="text-white font-serif-bold text-xl leading-tight">
                 Delete Entry?
               </Typo>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
-                <AlertTriangle size={10} color={colors.danger[500]} strokeWidth={2} />
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  marginTop: 2,
+                }}
+              >
+                <AlertTriangle
+                  size={10}
+                  color={colors.danger[500]}
+                  strokeWidth={2}
+                />
                 <Typo
                   className="font-mono text-[9px] uppercase tracking-widest"
                   style={{ color: colors.danger[500] }}
@@ -174,7 +201,13 @@ const ConfirmDeleteModal = ({
             </View>
 
             {/* Divider */}
-            <View style={{ width: 1, height: 36, backgroundColor: "rgba(255,255,255,0.07)" }} />
+            <View
+              style={{
+                width: 1,
+                height: 36,
+                backgroundColor: "rgba(255,255,255,0.07)",
+              }}
+            />
 
             {/* Right: description + category */}
             <View style={{ flex: 1 }}>
@@ -234,7 +267,9 @@ const ConfirmDeleteModal = ({
                 justifyContent: "center",
                 flexDirection: "row",
                 gap: 7,
-                backgroundColor: isDeleting ? `${colors.danger[500]}55` : colors.danger[500],
+                backgroundColor: isDeleting
+                  ? `${colors.danger[500]}55`
+                  : colors.danger[500],
               }}
             >
               {isDeleting ? (

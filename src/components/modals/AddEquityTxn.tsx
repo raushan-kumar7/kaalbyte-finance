@@ -93,26 +93,25 @@ const AddEquityTxn = ({ onClose }: AddEquityTxnProps) => {
     },
   };
 
-
   const handleSubmit = async (data: any) => {
-  const finalData = {
-    date: data.date instanceof Date ? data.date : new Date(data.date),
-    company: data.company,
-    exchange: data.exchange as Exchange,
-    pricePerShare: Number(data.price_per_share),
-    totalShares: Number(data.total_shares),
-    totalAmount: Number(data.total_amount),
+    const finalData = {
+      date: data.date instanceof Date ? data.date : new Date(data.date),
+      company: data.company,
+      exchange: data.exchange as Exchange,
+      pricePerShare: Number(data.price_per_share),
+      totalShares: Number(data.total_shares),
+      totalAmount: Number(data.total_amount),
+    };
+
+    const result = await createAsset(finalData as any);
+
+    if (result.success) {
+      showToast.success("Equity Added", `Successfully added ${data.company}`);
+      onClose();
+    } else {
+      showToast.error("Error", result.error || "Failed to add equity asset");
+    }
   };
-
-  const result = await createAsset(finalData as any);
-
-  if (result.success) {
-    showToast.success("Equity Added", `Successfully added ${data.company}`);
-    onClose();
-  } else {
-    showToast.error("Error", result.error || "Failed to add equity asset");
-  }
-};
 
   return (
     <ModalWrapper title="Add Equity Asset" onClose={onClose}>

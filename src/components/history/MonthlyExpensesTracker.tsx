@@ -237,7 +237,7 @@ const MonthlyExpensesTracker = ({
                     >
                       <View className="bg-brand-800 rounded-[24px] p-4 border border-white/5">
                         <View
-                          className="w-10 h-10 rounded-2xl items-center justify-center mb-3"
+                          className="w-10 h-10 rounded-2xl items-center justify-center mb-3 self-center"
                           style={{ backgroundColor: bucket.bgColor }}
                         >
                           <bucket.icon size={20} color={bucket.color} />

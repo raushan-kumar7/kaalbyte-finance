@@ -3,10 +3,8 @@ import { Exchange, BucketType, CATEGORIES } from "../types/finance";
 
 const categoryLabels = Object.values(CATEGORIES).map((cat) => cat.label);
 
-// ✅ CORRECTED: userId is optional for form validation
-// The service layer will add userId, so forms don't need to provide it
 export const dailyEntrySchema = Yup.object().shape({
-  userId: Yup.string().optional(), // ✅ CHANGED: Make optional for forms
+  userId: Yup.string().optional(),
   date: Yup.date().required("Date is required"),
   category: Yup.string()
     .oneOf(categoryLabels, "Invalid category")
@@ -23,7 +21,6 @@ export const dailyEntrySchema = Yup.object().shape({
     .required("Bucket is required"),
 });
 
-// ✅ NEW: Separate schema for service layer validation (with required userId)
 export const dailyEntryServiceSchema = Yup.object().shape({
   userId: Yup.string().required("User ID is required"),
   date: Yup.date().required("Date is required"),
@@ -42,9 +39,8 @@ export const dailyEntryServiceSchema = Yup.object().shape({
     .required("Bucket is required"),
 });
 
-// ✅ CORRECTED: user_id is optional for forms
 export const goldAssetSchema = Yup.object().shape({
-  user_id: Yup.string().optional(), // ✅ CHANGED: Make optional for forms
+  user_id: Yup.string().optional(),
   date: Yup.date().required("Purchase date is required"),
   platform: Yup.string().required("Platform name is required"),
   rate_per_gram: Yup.number()
@@ -58,7 +54,6 @@ export const goldAssetSchema = Yup.object().shape({
   gold_value: Yup.number().min(0, "Value cannot be negative"),
 });
 
-// ✅ NEW: Separate schema for service layer
 export const goldAssetServiceSchema = Yup.object().shape({
   user_id: Yup.string().required("User ID is required"),
   date: Yup.date().required("Purchase date is required"),
@@ -74,9 +69,8 @@ export const goldAssetServiceSchema = Yup.object().shape({
   gold_value: Yup.number().min(0, "Value cannot be negative"),
 });
 
-// ✅ CORRECTED: user_id is optional for forms
 export const equityAssetSchema = Yup.object().shape({
-  user_id: Yup.string().optional(), // ✅ CHANGED: Make optional for forms
+  user_id: Yup.string().optional(),
   date: Yup.date().required("Purchase date is required"),
   company: Yup.string().required("Company name is required"),
   exchange: Yup.mixed<Exchange>()
@@ -87,7 +81,6 @@ export const equityAssetSchema = Yup.object().shape({
   total_amount: Yup.number().positive().required("Total amount required"),
 });
 
-// ✅ NEW: Separate schema for service layer
 export const equityAssetServiceSchema = Yup.object().shape({
   user_id: Yup.string().required("User ID is required"),
   date: Yup.date().required("Purchase date is required"),
@@ -100,9 +93,8 @@ export const equityAssetServiceSchema = Yup.object().shape({
   total_amount: Yup.number().positive().required("Total amount required"),
 });
 
-// ✅ CORRECTED: userId is optional for forms
 export const monthlyIncomeSchema = Yup.object().shape({
-  userId: Yup.string().optional(), // ✅ CHANGED: Make optional for forms
+  userId: Yup.string().optional(),
   month: Yup.string()
     .matches(/^\d{4}-\d{2}$/, "Format must be YYYY-MM")
     .required("Month is required"),
@@ -111,7 +103,6 @@ export const monthlyIncomeSchema = Yup.object().shape({
   total_income: Yup.number().min(0),
 });
 
-// ✅ NEW: Separate schema for service layer
 export const monthlyIncomeServiceSchema = Yup.object().shape({
   userId: Yup.string().required("User ID is required"),
   month: Yup.string()

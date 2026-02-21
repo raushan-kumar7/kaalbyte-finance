@@ -10,7 +10,7 @@ import { getCurrentUserId } from "@/src/utils/auth";
 import type { MonthlyExpenseTracker } from "@/src/types/finance";
 import type { MonthlyIncome } from "@/src/db/schema";
 import type { ExpenseEntry } from "@/src/types/export-data";
-import type { ExpenseRow } from "@/src/components/history/ExpensesTable";
+import { ExpenseRow } from "@/src/components/tables/ExpensesTable";
 import {
   MONTH_NAMES,
   extractAvailableYears,
