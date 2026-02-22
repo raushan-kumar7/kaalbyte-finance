@@ -25,11 +25,12 @@ const MonthlyGrowthTrend = () => {
               MonthlyIncomesService.getIncomeByMonth(monthStr, userId),
             ]);
 
-            const totalIncome = income?.totalIncome || 0;
-            const needs = summary?.bucketTotals?.needs || 0;
-            const wants = summary?.bucketTotals?.wants || 0;
+            const totalIncome = income?.totalIncome ?? 0;
+            const needs = summary?.bucketTotals?.needs ?? 0;
+            const wants = summary?.bucketTotals?.wants ?? 0;
+            const savings = summary?.bucketTotals?.savings ?? 0;
 
-            const totalExpenses = needs + wants;
+            const totalExpenses = needs + wants + savings;
             const surplus = Math.max(0, totalIncome - totalExpenses);
 
             return {
@@ -38,6 +39,7 @@ const MonthlyGrowthTrend = () => {
                 { value: surplus, color: colors.success[500] },
               ],
               label: label,
+              totalIncome: totalIncome,
             };
           } catch (err) {
             console.error("Error: ", err);
@@ -106,13 +108,20 @@ const MonthlyGrowthTrend = () => {
           renderTooltip={(item: any) => {
             const expense = item.stacks[0].value;
             const surplus = item.stacks[1].value;
+            const income = item.totalIncome ?? expense + surplus;
             return (
-              <View className="bg-brand-900 p-2 rounded-xl border border-white/10 mb-[-100px] right-4 items-center shadow-lg">
-                <Typo className="text-success-500 text-[10px] font-mono-bold">
-                  +₹{(surplus / 1000).toFixed(1)}k
+              <View
+                className="p-2 rounded-xl border border-white/10 mb-[-100px] right-14 items-center shadow-lg"
+                style={{ backgroundColor: colors.ui.card }}
+              >
+                <Typo className="text-gold-500 text-[10px] font-mono-bold">
+                  ₹{(income / 1000).toFixed(1)}k Income
                 </Typo>
-                <Typo className="text-white/40 text-[8px] font-mono">
-                  In: ₹{((expense + surplus) / 1000).toFixed(1)}k
+                <Typo className="text-brand-500 text-[10px] font-mono-bold">
+                  ₹{(expense / 1000).toFixed(1)}k Expenses
+                </Typo>
+                <Typo className="text-success-500 text-[10px] font-mono-bold">
+                  +₹{(surplus / 1000).toFixed(1)}k Surplus
                 </Typo>
               </View>
             );
