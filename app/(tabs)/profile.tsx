@@ -155,7 +155,7 @@ const Profile = () => {
 
       {/* --- PERSONAL DETAILS MODAL --- */}
       <Modal
-        visible={activeModal !== null}
+        visible={activeModal === "details"}
         animationType="slide"
         transparent={true}
         onRequestClose={() => setActiveModal(null)}

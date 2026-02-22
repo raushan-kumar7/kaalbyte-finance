@@ -43,10 +43,6 @@ const TABLE_MAP = [
 type SnapshotData = Record<string, any[]>;
 
 export class SyncService {
-  /**
-   * Checks whether all required tables actually exist in Turso.
-   * Uses sqlite_master — works even if migration tracking is broken.
-   */
   private static async allTablesExist(): Promise<boolean> {
     try {
       const tableNames = TABLE_MAP.map((t) => t.sqlName);
@@ -66,11 +62,6 @@ export class SyncService {
     }
   }
 
-  /**
-   * Ensures Turso tables exist.
-   * Always verifies via sqlite_master — never trusts the flag blindly.
-   * Resets the flag and re-migrates if tables are missing despite the flag.
-   */
   private static async ensureReady(): Promise<void> {
     const migrated = await AsyncStorage.getItem(TURSO_MIGRATED_KEY);
 
@@ -80,27 +71,34 @@ export class SyncService {
         console.log("[Sync] ✅ Turso tables verified — skipping migration");
         return;
       }
-      // Flag is stale — tables were never created or were dropped
       console.warn(
-        "[Sync] ⚠️ Migration flag set but tables are missing. Resetting and re-migrating...",
+        "[Sync] ⚠️ Migration flag set but tables missing — re-migrating...",
       );
       await AsyncStorage.removeItem(TURSO_MIGRATED_KEY);
     }
 
     try {
-      console.log("[Sync] 🚀 Running Turso Migrations...");
+      console.log("[Sync] 🚀 Running Turso migrations...");
       await migrateTurso();
       await AsyncStorage.setItem(TURSO_MIGRATED_KEY, "true");
-      console.log("[Sync] ✅ Turso Tables Ready");
+      console.log("[Sync] ✅ Turso tables ready");
     } catch (err) {
       console.error("[Sync] ❌ Migration failed:", err);
-      // Do NOT set the flag — forces retry on next sync
-      throw err; // Abort sync — no point pushing to non-existent tables
+      throw err;
     }
   }
 
   static async getLastSyncTime(): Promise<string | null> {
     return await AsyncStorage.getItem(LAST_SYNC_KEY);
+  }
+
+  static async getLocalDataSummary(userId: string): Promise<number> {
+    const results = await Promise.all(
+      TABLE_MAP.map(({ table, userCol }) =>
+        db.select().from(table).where(eq(userCol, userId)),
+      ),
+    );
+    return results.reduce((sum, rows) => sum + rows.length, 0);
   }
 
   static async performSync(): Promise<void> {
@@ -125,13 +123,13 @@ export class SyncService {
       let didRestore = false;
 
       for (const { key, table, userCol } of TABLE_MAP) {
-        const localRows = localData[key] || [];
-        const tursoRows = tursoData[key] || [];
+        const localRows: any[] = localData[key] || [];
+        const tursoRows: any[] = tursoData[key] || [];
 
         try {
           if (localRows.length === 0 && tursoRows.length > 0) {
             console.log(
-              `[Sync] 📥 Restoring ${key} (${tursoRows.length} rows)`,
+              `[Sync] 📥 Restoring ${key} (${tursoRows.length} rows) from Turso`,
             );
             const cleanRows = tursoRows.map((r) => this.toLocalRow(r));
             await db
@@ -140,15 +138,17 @@ export class SyncService {
               .onConflictDoNothing();
             didRestore = true;
           } else if (localRows.length > 0) {
-            console.log(`[Sync] 📤 Pushing ${key} (${localRows.length} rows)`);
-            const tursoRowsConverted = localRows.map((r) => this.toTursoRow(r));
+            console.log(
+              `[Sync] 📤 Pushing ${key} (${localRows.length} rows) to Turso`,
+            );
+            const tursoRows = localRows.map((r) => this.toTursoRow(r));
 
             await tursoDb.transaction(async (tx) => {
               await tx.delete(table).where(eq(userCol, userId));
-              for (let i = 0; i < tursoRowsConverted.length; i += 100) {
+              for (let i = 0; i < tursoRows.length; i += 100) {
                 await tx
                   .insert(table)
-                  .values(tursoRowsConverted.slice(i, i + 100) as any);
+                  .values(tursoRows.slice(i, i + 100) as any);
               }
             });
           } else {
@@ -160,9 +160,10 @@ export class SyncService {
       }
 
       await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
+      console.log("[Sync] ✅ Smart sync complete at", new Date().toISOString());
       return didRestore;
     } catch (err) {
-      console.error("[Sync] ❌ Global smart sync failed:", err);
+      console.error("[Sync] ❌ Smart sync failed:", err);
       throw err;
     }
   }
@@ -192,20 +193,20 @@ export class SyncService {
     return data;
   }
 
-  private static toTursoRow(row: Record<string, any>): Record<string, any> {
-    return Object.fromEntries(
-      Object.entries(row).map(([k, v]) => [
-        k,
-        DATE_FIELDS.has(k) && typeof v === "number" ? new Date(v * 1000) : v,
-      ]),
-    );
-  }
-
   private static toLocalRow(row: Record<string, any>): Record<string, any> {
     return Object.fromEntries(
       Object.entries(row).map(([k, v]) => [
         k,
-        v instanceof Date ? Math.floor(v.getTime() / 1000) : v,
+        DATE_FIELDS.has(k) && v != null ? new Date(v) : v,
+      ]),
+    );
+  }
+
+  private static toTursoRow(row: Record<string, any>): Record<string, any> {
+    return Object.fromEntries(
+      Object.entries(row).map(([k, v]) => [
+        k,
+        DATE_FIELDS.has(k) && v instanceof Date ? v.toISOString() : v,
       ]),
     );
   }

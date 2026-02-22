@@ -26,10 +26,14 @@ import {
 } from "firebase/firestore";
 import * as Device from "expo-device";
 import * as Localization from "expo-localization";
+import * as SecureStore from "expo-secure-store";
+import * as LocalAuthentication from "expo-local-authentication";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const RESTORE_DONE_KEY = "cloud_restore_done";
 const TURSO_MIGRATED_KEY = "turso_migrated";
+const CURRENT_SESSION_KEY = "current_session_id";
+const BIOMETRIC_CREDENTIALS_KEY = "biometric_credentials";
 
 class AuthService {
   /**
@@ -56,12 +60,13 @@ class AuthService {
         os: `${Device.osName} ${Device.osVersion}`,
         location: Localization.getCalendars()[0].timeZone || "Unknown Location",
         lastActive: new Date().toISOString(),
-        isCurrent: true, // This is relative to the device creating it
+        isCurrent: true,
         type: Device.deviceType === 1 ? "mobile" : "desktop",
         createdAt: new Date(),
       };
 
       await setDoc(sessionDocRef, sessionData);
+      await AsyncStorage.setItem(CURRENT_SESSION_KEY, sessionDocRef.id);
     } catch (error) {
       console.error("Failed to create session record:", error);
     }
@@ -135,7 +140,49 @@ class AuthService {
     return userCredential;
   }
 
+  // static async signout(): Promise<void> {
+  //   try {
+  //     const sessionId = await AsyncStorage.getItem(CURRENT_SESSION_KEY);
+  //     if (sessionId) {
+  //       await deleteDoc(doc(firebaseDB, "sessions", sessionId));
+  //       await AsyncStorage.removeItem(CURRENT_SESSION_KEY);
+  //     }
+  //   } catch (error) {
+  //     console.error("Failed to delete session on signout:", error);
+  //   }
+
+  //   await AsyncStorage.removeItem(RESTORE_DONE_KEY);
+  //   await AsyncStorage.removeItem(TURSO_MIGRATED_KEY);
+  //   return await signOut(auth);
+  // }
+
   static async signout(): Promise<void> {
+    try {
+      const sessionId = await AsyncStorage.getItem(CURRENT_SESSION_KEY);
+
+      if (sessionId) {
+        await deleteDoc(doc(firebaseDB, "sessions", sessionId));
+        await AsyncStorage.removeItem(CURRENT_SESSION_KEY);
+      } else {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const sessionsRef = collection(firebaseDB, "sessions");
+          const q = query(
+            sessionsRef,
+            where("userId", "==", currentUser.uid),
+            where("device", "==", Device.modelName || "Unknown Device"),
+            where("os", "==", `${Device.osName} ${Device.osVersion}`),
+          );
+          const snap = await getDocs(q);
+          const batch = writeBatch(firebaseDB);
+          snap.docs.forEach((d) => batch.delete(d.ref));
+          await batch.commit();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to delete session on signout:", error);
+    }
+
     await AsyncStorage.removeItem(RESTORE_DONE_KEY);
     await AsyncStorage.removeItem(TURSO_MIGRATED_KEY);
     return await signOut(auth);
@@ -232,6 +279,42 @@ class AuthService {
       }));
       callback(sessions);
     });
+  }
+
+  static async saveBiometricCredentials(
+    userId: string,
+    password: string,
+  ): Promise<void> {
+    await SecureStore.setItemAsync(
+      BIOMETRIC_CREDENTIALS_KEY,
+      JSON.stringify({ userId, password }),
+    );
+  }
+
+  static async clearBiometricCredentials(): Promise<void> {
+    await SecureStore.deleteItemAsync(BIOMETRIC_CREDENTIALS_KEY);
+  }
+
+  static async signinWithBiometrics(): Promise<UserCredential> {
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: "Sign in to your account",
+      fallbackLabel: "Use Password",
+      disableDeviceFallback: false,
+    });
+
+    if (!result.success) {
+      throw new Error("Biometric authentication failed.");
+    }
+
+    const raw = await SecureStore.getItemAsync(BIOMETRIC_CREDENTIALS_KEY);
+    if (!raw) {
+      throw new Error(
+        "No saved credentials found. Please sign in with your password first.",
+      );
+    }
+
+    const { userId, password } = JSON.parse(raw);
+    return this.signin({ userId, password });
   }
 }
 

@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  ScrollView
+  ScrollView,
 } from "react-native";
 import React from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -69,8 +69,8 @@ const Signup = () => {
               <Typo className="text-3xl font-mono-bold text-white mt-2">
                 Create Account
               </Typo>
-              <Typo className="text-text-secondary font-mono opacity-70">
-                Enter your details to join the vault
+              <Typo className="text-text-secondary text-center font-mono opacity-70">
+                Take control of your finances, starting today.
               </Typo>
             </View>
 
