@@ -11,7 +11,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LAST_SYNC_KEY = "last_sync_timestamp";
 const TURSO_MIGRATED_KEY = "turso_migrated";
-const DATE_FIELDS = new Set(["date", "createdAt", "updatedAt"]);
+
+/**
+ * All timestamp/date column names from your schema.
+ * These are stored as Unix seconds (INTEGER) in SQLite.
+ */
+const DATE_FIELDS = new Set(["date", "createdAt", "updatedAt", "timestamp"]);
+
+// Safe limit for Turso transactions
+const TURSO_BATCH_SIZE = 25;
+const STAGING_MARKER = "__staging__";
 
 const TABLE_MAP = [
   {
@@ -51,70 +60,34 @@ export class SyncService {
         sql: `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${placeholders})`,
         args: tableNames,
       });
-      const found = result.rows.length;
-      console.log(
-        `[Sync] 🔍 Tables found in Turso: ${found}/${tableNames.length}`,
-      );
-      return found === tableNames.length;
-    } catch (err) {
-      console.warn("[Sync] ⚠️ Could not verify Turso tables:", err);
+      return result.rows.length === tableNames.length;
+    } catch {
       return false;
     }
   }
 
   private static async ensureReady(): Promise<void> {
     const migrated = await AsyncStorage.getItem(TURSO_MIGRATED_KEY);
-
-    if (migrated === "true") {
-      const exists = await this.allTablesExist();
-      if (exists) {
-        console.log("[Sync] ✅ Turso tables verified — skipping migration");
-        return;
-      }
-      console.warn(
-        "[Sync] ⚠️ Migration flag set but tables missing — re-migrating...",
-      );
-      await AsyncStorage.removeItem(TURSO_MIGRATED_KEY);
-    }
+    if (migrated === "true" && (await this.allTablesExist())) return;
 
     try {
-      console.log("[Sync] 🚀 Running Turso migrations...");
       await migrateTurso();
       await AsyncStorage.setItem(TURSO_MIGRATED_KEY, "true");
-      console.log("[Sync] ✅ Turso tables ready");
     } catch (err) {
-      console.error("[Sync] ❌ Migration failed:", err);
+      console.error("[Sync] Migration failed:", err);
       throw err;
     }
-  }
-
-  static async getLastSyncTime(): Promise<string | null> {
-    return await AsyncStorage.getItem(LAST_SYNC_KEY);
-  }
-
-  static async getLocalDataSummary(userId: string): Promise<number> {
-    const results = await Promise.all(
-      TABLE_MAP.map(({ table, userCol }) =>
-        db.select().from(table).where(eq(userCol, userId)),
-      ),
-    );
-    return results.reduce((sum, rows) => sum + rows.length, 0);
   }
 
   static async performSync(): Promise<void> {
     const { auth } = await import("../config/firebase");
     const user = auth.currentUser;
-    if (user) {
-      await this.smartSync(user.uid);
-    } else {
-      console.log("[Sync] No user logged in, skipping.");
-    }
+    if (user) await this.smartSync(user.uid);
   }
 
   static async smartSync(userId: string): Promise<boolean> {
     try {
       await this.ensureReady();
-
       const [localData, tursoData] = await Promise.all([
         this.fetchLocalData(userId),
         this.fetchFromTurso(userId),
@@ -123,47 +96,113 @@ export class SyncService {
       let didRestore = false;
 
       for (const { key, table, userCol } of TABLE_MAP) {
-        const localRows: any[] = localData[key] || [];
-        const tursoRows: any[] = tursoData[key] || [];
+        const localRows = localData[key] || [];
+        const cloudRows = tursoData[key] || [];
 
         try {
-          if (localRows.length === 0 && tursoRows.length > 0) {
-            console.log(
-              `[Sync] 📥 Restoring ${key} (${tursoRows.length} rows) from Turso`,
-            );
-            const cleanRows = tursoRows.map((r) => this.toLocalRow(r));
-            await db
-              .insert(table)
-              .values(cleanRows as any)
-              .onConflictDoNothing();
+          if (localRows.length === 0 && cloudRows.length > 0) {
+            // --- RESTORE: Cloud to Local ---
+            const cleanRows = cloudRows.map((r) => this.toLocalRow(r));
+            for (let i = 0; i < cleanRows.length; i += 50) {
+              await db
+                .insert(table)
+                .values(cleanRows.slice(i, i + 50) as any)
+                .onConflictDoNothing();
+            }
             didRestore = true;
-          } else if (localRows.length > 0) {
-            console.log(
-              `[Sync] 📤 Pushing ${key} (${localRows.length} rows) to Turso`,
-            );
-            const tursoRows = localRows.map((r) => this.toTursoRow(r));
 
-            await tursoDb.transaction(async (tx) => {
-              await tx.delete(table).where(eq(userCol, userId));
-              for (let i = 0; i < tursoRows.length; i += 100) {
-                await tx
-                  .insert(table)
-                  .values(tursoRows.slice(i, i + 100) as any);
-              }
+          } else if (localRows.length > 0) {
+            // --- PUSH: Local to Cloud (Two-phase atomic upload) ---
+            const stagingUserId = `${userId}${STAGING_MARKER}`;
+
+            // Convert all rows for Turso — dates become proper Date objects,
+            // id is stripped so Turso auto-increments (no UNIQUE conflicts).
+            const rowsToUpload = localRows.map((r) => {
+              const tursoRow = this.toTursoRow(r);
+              const { id, ...rowWithoutId } = tursoRow; // strip id — let Turso AUTOINCREMENT
+              return { ...rowWithoutId, userId: stagingUserId };
             });
-          } else {
-            console.log(`[Sync] ⏭️ ${key} — both empty, skipping`);
+
+            // Clear any leftover staging rows from a previous failed sync
+            await tursoDb.delete(table).where(eq(userCol, stagingUserId));
+
+            // Phase 1: Upload all rows to staging in safe batches
+            let allBatchesSucceeded = true;
+            let uploadedCount = 0;
+
+            for (let i = 0; i < rowsToUpload.length; i += TURSO_BATCH_SIZE) {
+              const chunk = rowsToUpload.slice(i, i + TURSO_BATCH_SIZE);
+              try {
+                await tursoDb.insert(table).values(chunk as any);
+                uploadedCount += chunk.length;
+                console.log(
+                  `[Sync] 📦 ${key}: staged ${uploadedCount}/${rowsToUpload.length} rows`,
+                );
+              } catch (batchErr) {
+                allBatchesSucceeded = false;
+                console.error(
+                  `[Sync] ❌ ${key}: batch [${i}–${i + chunk.length - 1}] failed:`,
+                  batchErr,
+                );
+                break;
+              }
+            }
+
+            if (!allBatchesSucceeded) {
+              await tursoDb.delete(table).where(eq(userCol, stagingUserId));
+              console.error(
+                `[Sync] ❌ ${key}: staging incomplete — live data untouched. Will retry next sync.`,
+              );
+              continue;
+            }
+
+            // Phase 2: Verify row count in staging matches what we sent
+            const staged = await tursoDb
+              .select()
+              .from(table)
+              .where(eq(userCol, stagingUserId));
+
+            if (staged.length !== rowsToUpload.length) {
+              await tursoDb.delete(table).where(eq(userCol, stagingUserId));
+              console.error(
+                `[Sync] ❌ ${key}: count mismatch — expected ${rowsToUpload.length}, ` +
+                  `got ${staged.length}. Live data untouched. Will retry next sync.`,
+              );
+              continue;
+            }
+
+            console.log(
+              `[Sync] ✅ ${key}: all ${rowsToUpload.length} rows staged and verified`,
+            );
+
+            // Phase 3: Atomic swap — delete live rows, promote staging to live
+            await tursoDb.delete(table).where(eq(userCol, userId));
+
+            for (let i = 0; i < staged.length; i += TURSO_BATCH_SIZE) {
+              const chunk = staged
+                .slice(i, i + TURSO_BATCH_SIZE)
+                .map((r: any) => {
+                  const { id, ...rowWithoutId } = r;
+                  return { ...rowWithoutId, userId };
+                });
+              await tursoDb.insert(table).values(chunk as any);
+            }
+
+            await tursoDb.delete(table).where(eq(userCol, stagingUserId));
+
+            console.log(
+              `[Sync] ✅ ${key}: ${staged.length} rows live in cloud`,
+            );
           }
         } catch (tableErr) {
-          console.error(`[Sync] ❌ Failed to sync table ${key}:`, tableErr);
+          console.error(`[Sync] ❌ Table ${key} failed:`, tableErr);
         }
       }
 
       await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
-      console.log("[Sync] ✅ Smart sync complete at", new Date().toISOString());
       return didRestore;
     } catch (err) {
-      console.error("[Sync] ❌ Smart sync failed:", err);
+      console.error("[Sync] ❌ Sync failed:", err);
       throw err;
     }
   }
@@ -185,29 +224,72 @@ export class SyncService {
           .select()
           .from(table)
           .where(eq(userCol, userId));
-      } catch (err) {
-        console.warn(`[Sync] ⚠️ Table "${key}" fetch failed:`, err);
+      } catch {
         data[key] = [];
       }
     }
     return data;
   }
 
-  private static toLocalRow(row: Record<string, any>): Record<string, any> {
+  /**
+   * Converts a local SQLite row for insertion into Turso.
+   *
+   * CRITICAL: Local SQLite stores timestamps as Unix seconds (INTEGER).
+   * e.g. 1767225600 = a date in seconds, NOT milliseconds.
+   *
+   * Drizzle's LibSQL (Turso) driver calls .getTime() on date columns,
+   * so they MUST be proper Date objects.
+   *
+   * Conversion rules:
+   *   number < 10_000_000_000  → Unix seconds  → multiply × 1000 → Date
+   *   number >= 10_000_000_000 → Unix ms        → Date directly
+   *   string                   → ISO string     → new Date(v)
+   *   Date                     → pass through
+   *   null / undefined         → pass through (nullable)
+   */
+  private static toTursoRow(row: Record<string, any>): Record<string, any> {
     return Object.fromEntries(
-      Object.entries(row).map(([k, v]) => [
-        k,
-        DATE_FIELDS.has(k) && v != null ? new Date(v) : v,
-      ]),
+      Object.entries(row).map(([k, v]) => {
+        if (!DATE_FIELDS.has(k) || v == null) return [k, v];
+        if (v instanceof Date) return [k, v];
+        if (typeof v === "number") {
+          // Unix seconds if below year 2001 in ms threshold
+          const ms = v < 10_000_000_000 ? v * 1000 : v;
+          const d = new Date(ms);
+          return [k, isNaN(d.getTime()) ? null : d];
+        }
+        if (typeof v === "string") {
+          const d = new Date(v);
+          return [k, isNaN(d.getTime()) ? null : d];
+        }
+        console.warn(`[Sync] ⚠️ Unexpected type for date field "${k}":`, typeof v);
+        return [k, null];
+      }),
     );
   }
 
-  private static toTursoRow(row: Record<string, any>): Record<string, any> {
+  /**
+   * Converts a Turso row for insertion into local SQLite.
+   *
+   * Expo SQLite / drizzle-orm local driver expects Date objects for
+   * timestamp columns (it serializes them to Unix seconds internally).
+   */
+  private static toLocalRow(row: Record<string, any>): Record<string, any> {
     return Object.fromEntries(
-      Object.entries(row).map(([k, v]) => [
-        k,
-        DATE_FIELDS.has(k) && v instanceof Date ? v.toISOString() : v,
-      ]),
+      Object.entries(row).map(([k, v]) => {
+        if (!DATE_FIELDS.has(k) || v == null) return [k, v];
+        if (v instanceof Date) return [k, v];
+        if (typeof v === "number") {
+          const ms = v < 10_000_000_000 ? v * 1000 : v;
+          const d = new Date(ms);
+          return [k, isNaN(d.getTime()) ? null : d];
+        }
+        if (typeof v === "string") {
+          const d = new Date(v);
+          return [k, isNaN(d.getTime()) ? null : d];
+        }
+        return [k, null];
+      }),
     );
   }
 }
