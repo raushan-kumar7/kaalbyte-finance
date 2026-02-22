@@ -20,8 +20,8 @@ const RESTORE_DONE_KEY = "cloud_restore_done";
 const StackLayout = () => {
   const { setSession, clearSession } = useAuthStore();
   const [isInitializing, setIsInitializing] = useState(true);
+  const [restoreKey, setRestoreKey] = useState(0);
 
-  // Register background sync once on mount
   useEffect(() => {
     SyncScheduler.register();
     SyncScheduler.setupNotificationHandler();
@@ -32,19 +32,25 @@ const StackLayout = () => {
 
     const bootstrap = async () => {
       try {
+        await AsyncStorage.multiRemove(["turso_migrated", RESTORE_DONE_KEY]);
+
         unsubscribe = onAuthStateChanged(auth, async (user) => {
           try {
             if (user) {
               const profile = await AuthService.getCurrentUserProfile();
-
               if (profile) {
                 setSession(profile);
-                await maybeRestoreFromCloud(user.uid);
+
+                const didRestore = await maybeRestoreFromCloud(user.uid);
+
+                // Re-mount all screens if any table was restored from Turso
+                if (didRestore) {
+                  setRestoreKey((k) => k + 1);
+                }
               } else {
                 clearSession();
               }
             } else {
-              // Always clear on null user — signout, token expiry, etc.
               clearSession();
             }
           } catch (error) {
@@ -61,7 +67,6 @@ const StackLayout = () => {
     };
 
     bootstrap();
-
     return () => {
       if (unsubscribe) unsubscribe();
     };
@@ -69,7 +74,7 @@ const StackLayout = () => {
 
   return (
     <AuthGuard isInitializing={isInitializing}>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack key={restoreKey} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" options={{ gestureEnabled: false }} />
         <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
@@ -78,26 +83,34 @@ const StackLayout = () => {
   );
 };
 
-async function maybeRestoreFromCloud(userId: string): Promise<void> {
-  const alreadyRestored = await AsyncStorage.getItem(RESTORE_DONE_KEY);
-  if (alreadyRestored) return;
+async function maybeRestoreFromCloud(userId: string): Promise<boolean> {
+  try {
+    const alreadyRestored = await AsyncStorage.getItem(RESTORE_DONE_KEY);
+    if (alreadyRestored) {
+      console.log("[Layout] Restore already done for this session — skipping");
+      return false;
+    }
 
-  const restored = await SyncService.restoreFromCloud(userId);
+    console.log("[Layout] Running smart sync on login...");
+    const didRestore = await SyncService.smartSync(userId);
 
-  // Even if not restored (no backup found), we mark it done
-  // so we don't keep checking every single boot-up.
-  await AsyncStorage.setItem(RESTORE_DONE_KEY, "true");
+    await AsyncStorage.setItem(RESTORE_DONE_KEY, "true");
 
-  if (restored) {
-    console.log("[Layout] ✅ Cloud restore applied to local DB");
-  } else {
-    console.log("[Layout] No backup found, starting with local data.");
+    if (didRestore) {
+      console.log("[Layout] ✅ Some tables restored from Turso — re-rendering");
+    } else {
+      console.log("[Layout] ✅ Smart sync complete — no restore needed");
+    }
+
+    return didRestore;
+  } catch (err) {
+    console.error("[Layout] ❌ maybeRestoreFromCloud failed:", err);
+    return false;
   }
 }
 
 export default function RootLayout() {
   useDrizzleStudio(expoDb);
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <DatabaseProvider>

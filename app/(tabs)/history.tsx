@@ -1,7 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { View, TouchableOpacity, FlatList } from "react-native";
 import { ChevronLeft, ChevronRight } from "lucide-react-native";
-import { ScreenWrapper, MonthlyExpensesTracker, Typo, ExportButton } from "@/src/components";
+import {
+  ScreenWrapper,
+  MonthlyExpensesTracker,
+  Typo,
+  ExportButton,
+} from "@/src/components";
 import { colors } from "@/src/constants/colors";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useAllDailyEntries, useAllMonthlyIncomes } from "@/src/hooks";
@@ -67,8 +72,11 @@ const toExportEntry = (e: {
 
 const History = () => {
   const currentDate = useMemo(() => new Date(), []);
+
+  // ✅ Default to current year/month — will auto-correct if no data found
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth()); // 0-11
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth());
+  const [hasAutoNavigated, setHasAutoNavigated] = useState(false);
 
   const [monthlyExpenseSummary, setMonthlyExpenseSummary] =
     useState<MonthlyExpenseTracker | null>(null);
@@ -86,37 +94,88 @@ const History = () => {
   const { entries: allEntries } = useAllDailyEntries();
   const { incomes } = useAllMonthlyIncomes();
 
-  const fetchMonthData = useCallback(async (signal?: { cancelled: boolean }) => {
-    setIsLoadingLocal(true);
-    try {
-      const userId = getCurrentUserId();
-      const [summary, income, rawEntries] = await Promise.all([
-        DailyEntriesService.getMonthlyExpenseSummary(monthKey, userId),
-        MonthlyIncomesService.getIncomeByMonth(monthKey, userId),
-        DailyEntriesService.getEntriesByMonth(monthKey, userId),
-      ]);
+  const years = useMemo(() => {
+    const dataYears = extractAvailableYears(allEntries, incomes);
+    const currentYear = currentDate.getFullYear();
+    const allYears = Array.from(new Set([...dataYears, currentYear])).sort(
+      (a, b) => a - b,
+    );
+    return allYears;
+  }, [allEntries, incomes, currentDate]);
 
-      if (signal?.cancelled) return;
+  useEffect(() => {
+    if (hasAutoNavigated) return;
+    if (allEntries.length === 0) return;
 
-      setMonthlyExpenseSummary(summary);
-      setSelectedMonthIncome(income ?? null);
-      setMonthEntries((rawEntries ?? []).map(toExpenseRow));
-      setExportEntries((rawEntries ?? []).map(toExportEntry));
-    } catch {
-      if (signal?.cancelled) return;
-      setMonthlyExpenseSummary(null);
-      setSelectedMonthIncome(null);
-      setMonthEntries([]);
-      setExportEntries([]);
-    } finally {
-      if (!signal?.cancelled) setIsLoadingLocal(false);
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    // Find the most recent entry date across all entries
+    const mostRecent = allEntries.reduce((latest, entry) => {
+      const d = new Date(entry.date);
+      return d > latest ? d : latest;
+    }, new Date(0));
+
+    const mostRecentYear = mostRecent.getFullYear();
+    const mostRecentMonth = mostRecent.getMonth();
+
+    // Only auto-navigate if the most recent data year differs from current selection
+    // i.e. data is in 2025 but we're showing 2026
+    if (mostRecentYear !== currentYear || mostRecentMonth !== currentMonth) {
+      // Prefer current year/month if it has data, otherwise go to most recent
+      const currentMonthKey = generateMonthKey(currentYear, currentMonth);
+      const hasCurrentMonthData = allEntries.some((e) => {
+        const d = new Date(e.date);
+        return (
+          generateMonthKey(d.getFullYear(), d.getMonth()) === currentMonthKey
+        );
+      });
+
+      if (!hasCurrentMonthData) {
+        setSelectedYear(mostRecentYear);
+        setSelectedMonth(mostRecentMonth);
+      }
     }
-  }, [monthKey]);
+
+    setHasAutoNavigated(true);
+  }, [allEntries, hasAutoNavigated, currentDate]);
+
+  const fetchMonthData = useCallback(
+    async (signal?: { cancelled: boolean }) => {
+      setIsLoadingLocal(true);
+      try {
+        const userId = getCurrentUserId();
+        const [summary, income, rawEntries] = await Promise.all([
+          DailyEntriesService.getMonthlyExpenseSummary(monthKey, userId),
+          MonthlyIncomesService.getIncomeByMonth(monthKey, userId),
+          DailyEntriesService.getEntriesByMonth(monthKey, userId),
+        ]);
+
+        if (signal?.cancelled) return;
+
+        setMonthlyExpenseSummary(summary);
+        setSelectedMonthIncome(income ?? null);
+        setMonthEntries((rawEntries ?? []).map(toExpenseRow));
+        setExportEntries((rawEntries ?? []).map(toExportEntry));
+      } catch {
+        if (signal?.cancelled) return;
+        setMonthlyExpenseSummary(null);
+        setSelectedMonthIncome(null);
+        setMonthEntries([]);
+        setExportEntries([]);
+      } finally {
+        if (!signal?.cancelled) setIsLoadingLocal(false);
+      }
+    },
+    [monthKey],
+  );
 
   useEffect(() => {
     const signal = { cancelled: false };
     fetchMonthData(signal);
-    return () => { signal.cancelled = true; };
+    return () => {
+      signal.cancelled = true;
+    };
   }, [fetchMonthData]);
 
   const handleUpdateEntry = useCallback(
@@ -125,16 +184,14 @@ const History = () => {
         const userId = getCurrentUserId();
         const numericId = Number(id);
 
-        // Build only the fields the service needs
         const payload: Record<string, unknown> = {};
         if (updates.category !== undefined) payload.category = updates.category;
-        if (updates.description !== undefined) payload.description = updates.description;
+        if (updates.description !== undefined)
+          payload.description = updates.description;
         if (updates.amount !== undefined) payload.amount = updates.amount;
         if (updates.bucket !== undefined) payload.bucket = updates.bucket;
 
         await DailyEntriesService.updateEntry(numericId, payload, userId);
-
-        // Silently refresh so the table shows the updated row immediately
         await fetchMonthData();
         return true;
       } catch {
@@ -149,8 +206,6 @@ const History = () => {
       try {
         const userId = getCurrentUserId();
         await DailyEntriesService.deleteEntry(Number(id), userId);
-
-        // Silently refresh so the deleted row disappears and totals update
         await fetchMonthData();
         return true;
       } catch {
@@ -158,11 +213,6 @@ const History = () => {
       }
     },
     [fetchMonthData],
-  );
-
-  const years = useMemo(
-    () => extractAvailableYears(allEntries, incomes),
-    [allEntries, incomes],
   );
 
   const data = useMemo(() => {
@@ -176,7 +226,7 @@ const History = () => {
         grandTotal: monthlyExpenseSummary.grandTotal,
         bucketTotals: monthlyExpenseSummary.bucketTotals,
         categoryTotals: monthlyExpenseSummary.categoryTotals,
-        entries: monthEntries, // ExpenseRow[] — table + edit/delete
+        entries: monthEntries,
       };
     }
 
@@ -190,7 +240,6 @@ const History = () => {
     };
   }, [selectedMonth, selectedYear, monthlyExpenseSummary, monthEntries]);
 
-  // ── exportData for ExportButton (entries as ExpenseEntry[], no id) ─────────
   const exportData = useMemo(
     () => ({ ...data, entries: exportEntries }),
     [data, exportEntries],
@@ -204,8 +253,7 @@ const History = () => {
   const handlePreviousMonth = () => {
     if (selectedMonth === 0) {
       setSelectedMonth(11);
-      const prev = selectedYear - 1;
-      if (years.includes(prev)) setSelectedYear(prev);
+      setSelectedYear((y) => y - 1);
     } else {
       setSelectedMonth((m) => m - 1);
     }
@@ -214,17 +262,15 @@ const History = () => {
   const handleNextMonth = () => {
     if (selectedMonth === 11) {
       setSelectedMonth(0);
-      const next = selectedYear + 1;
-      if (years.includes(next)) setSelectedYear(next);
+      setSelectedYear((y) => y + 1);
     } else {
       setSelectedMonth((m) => m + 1);
     }
   };
-  
+
   return (
     <ScreenWrapper bg="bg-brand-900">
       <View className="flex-1">
-
         {/* ── Page header ─────────────────────────────────────────────────── */}
         <View className="px-6 pt-6 pb-4 border-b border-white/5">
           <View className="mb-4">
@@ -261,8 +307,9 @@ const History = () => {
               </Typo>
             </View>
 
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              {/* ExportButton gets ExpenseEntry[] data — no id fields */}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
               <ExportButton data={exportData} totalIncome={totalIncome} />
               <TouchableOpacity
                 onPress={handleNextMonth}
@@ -294,7 +341,9 @@ const History = () => {
                   >
                     <Typo
                       className={`font-mono text-xs ${
-                        isSelected ? "text-white font-mono-bold" : "text-white/60"
+                        isSelected
+                          ? "text-white font-mono-bold"
+                          : "text-white/60"
                       }`}
                     >
                       {item.slice(0, 3)}
@@ -350,7 +399,6 @@ const History = () => {
             onDeleteEntry={handleDeleteEntry}
           />
         </Animated.View>
-
       </View>
     </ScreenWrapper>
   );

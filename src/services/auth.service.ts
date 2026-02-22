@@ -26,6 +26,10 @@ import {
 } from "firebase/firestore";
 import * as Device from "expo-device";
 import * as Localization from "expo-localization";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const RESTORE_DONE_KEY = "cloud_restore_done";
+const TURSO_MIGRATED_KEY = "turso_migrated";
 
 class AuthService {
   /**
@@ -101,13 +105,10 @@ class AuthService {
 
     // 5. Create Session Record
     await this.createSession(uid);
-  }
 
-  // static async signin({ userId, password }: ISignin): Promise<UserCredential> {
-  //   // Note: If userId is meant to be a username, you'd first need to
-  //   // query Firestore to find the email associated with that username.
-  //   return await signInWithEmailAndPassword(auth, userId, password);
-  // }
+    await AsyncStorage.removeItem(RESTORE_DONE_KEY);
+    await AsyncStorage.removeItem(TURSO_MIGRATED_KEY);
+  }
 
   static async signin({ userId, password }: ISignin): Promise<UserCredential> {
     let email = userId;
@@ -130,10 +131,13 @@ class AuthService {
       password,
     );
     await this.createSession(userCredential.user.uid);
+    await AsyncStorage.removeItem(RESTORE_DONE_KEY);
     return userCredential;
   }
 
   static async signout(): Promise<void> {
+    await AsyncStorage.removeItem(RESTORE_DONE_KEY);
+    await AsyncStorage.removeItem(TURSO_MIGRATED_KEY);
     return await signOut(auth);
   }
 
@@ -170,17 +174,17 @@ class AuthService {
   }
 
   static async resetPassword(email: string): Promise<void> {
-  try {
-    // Firebase sends an email with a link to reset the password
-    await sendPasswordResetEmail(auth, email);
-  } catch (error: any) {
-    // Map Firebase errors to user-friendly messages
-    if (error.code === 'auth/user-not-found') {
-      throw new Error("No user found with this email address.");
+    try {
+      // Firebase sends an email with a link to reset the password
+      await sendPasswordResetEmail(auth, email);
+    } catch (error: any) {
+      // Map Firebase errors to user-friendly messages
+      if (error.code === "auth/user-not-found") {
+        throw new Error("No user found with this email address.");
+      }
+      throw error;
     }
-    throw error;
   }
-}
 
   static async getUserSessions(uid: string): Promise<any[]> {
     const sessionsRef = collection(firebaseDB, "sessions");

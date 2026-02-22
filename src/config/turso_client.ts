@@ -4,7 +4,7 @@ import * as schema from "@/src/db/schema";
 import { APP_CONFIG } from "./app_cfg";
 import migrations from "@/drizzle/migrations";
 
-const tursoClient = createClient({
+export const tursoClient = createClient({
   url: APP_CONFIG.turso.url,
   authToken: APP_CONFIG.turso.authToken,
 });
@@ -13,7 +13,6 @@ export const tursoDb = drizzle(tursoClient, { schema });
 
 export async function migrateTurso(): Promise<void> {
   try {
-    // Create tracking table if it doesn't exist
     await tursoClient.execute(`
       CREATE TABLE IF NOT EXISTS __drizzle_migrations (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,15 +21,13 @@ export async function migrateTurso(): Promise<void> {
       )
     `);
 
-    // Get already-applied migration tags
     const result = await tursoClient.execute(
       `SELECT hash FROM __drizzle_migrations`,
     );
     const appliedHashes = new Set(result.rows.map((r) => r.hash as string));
 
-    // Apply each pending migration
     for (const entry of migrations.journal.entries) {
-      const tag = entry.tag; // e.g. "0000_worried_jane_foster"
+      const tag = entry.tag;
       if (appliedHashes.has(tag)) continue;
 
       const key =
@@ -42,7 +39,6 @@ export async function migrateTurso(): Promise<void> {
         continue;
       }
 
-      // Split on --> statement-breakpoint and run each statement individually
       const statements = migrationSql
         .split("--> statement-breakpoint")
         .map((s) => s.trim())
@@ -52,7 +48,6 @@ export async function migrateTurso(): Promise<void> {
         await tursoClient.execute(statement);
       }
 
-      // Record migration as applied
       await tursoClient.execute({
         sql: `INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)`,
         args: [tag, Date.now()],

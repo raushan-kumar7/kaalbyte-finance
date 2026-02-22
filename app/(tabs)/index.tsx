@@ -19,6 +19,7 @@ import {
 import { TrendingUp, User } from "lucide-react-native";
 import { colors } from "@/src/constants/colors";
 import { useAuth } from "@/src/hooks/useAuth";
+import { useRouter } from "expo-router";
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -33,6 +34,7 @@ type HomeRouteParams = {
 };
 
 const HomeDashboard = () => {
+  const router = useRouter();
   const { user } = useAuth();
   const route = useRoute<RouteProp<{ params: HomeRouteParams }, "params">>();
   const navigation = useNavigation();
@@ -137,7 +139,7 @@ const HomeDashboard = () => {
               {filter} Overview
             </Typo>
           </View>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/history")}>
             <Typo className="text-gold-500 font-mono-bold text-[9px] uppercase">
               Details
             </Typo>

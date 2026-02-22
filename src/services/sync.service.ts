@@ -1,5 +1,5 @@
 import { db } from "../db/client";
-import { tursoDb, migrateTurso } from "../config/turso_client";
+import { tursoDb, tursoClient, migrateTurso } from "../config/turso_client";
 import {
   dailyEntries,
   monthlyIncomes,
@@ -7,7 +7,6 @@ import {
   equityAssets,
 } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { auth } from "../config/firebase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LAST_SYNC_KEY = "last_sync_timestamp";
@@ -15,73 +14,157 @@ const TURSO_MIGRATED_KEY = "turso_migrated";
 const DATE_FIELDS = new Set(["date", "createdAt", "updatedAt"]);
 
 const TABLE_MAP = [
-  { key: "dailyEntries", table: dailyEntries, userCol: dailyEntries.userId },
+  {
+    key: "dailyEntries",
+    table: dailyEntries,
+    userCol: dailyEntries.userId,
+    sqlName: "daily_entries",
+  },
   {
     key: "monthlyIncomes",
     table: monthlyIncomes,
     userCol: monthlyIncomes.userId,
+    sqlName: "monthly_incomes",
   },
-  { key: "digitalAssets", table: digitalAssets, userCol: digitalAssets.userId },
-  { key: "equityAssets", table: equityAssets, userCol: equityAssets.userId },
+  {
+    key: "digitalAssets",
+    table: digitalAssets,
+    userCol: digitalAssets.userId,
+    sqlName: "digital_assets",
+  },
+  {
+    key: "equityAssets",
+    table: equityAssets,
+    userCol: equityAssets.userId,
+    sqlName: "equity_assets",
+  },
 ] as const;
 
-type SnapshotData = Record<string, Record<string, any>[]>;
+type SnapshotData = Record<string, any[]>;
 
 export class SyncService {
-  private static async ensureReady(): Promise<void> {
-    const migrated = await AsyncStorage.getItem(TURSO_MIGRATED_KEY);
-    if (migrated) return;
-
-    await migrateTurso();
-    await AsyncStorage.setItem(TURSO_MIGRATED_KEY, "true");
-  }
-
-  static async performSync(): Promise<void> {
-    const user = auth.currentUser;
-    if (!user) return;
-
+  /**
+   * Checks whether all required tables actually exist in Turso.
+   * Uses sqlite_master — works even if migration tracking is broken.
+   */
+  private static async allTablesExist(): Promise<boolean> {
     try {
-      await this.ensureReady();
-
-      const data = await this.fetchLocalData(user.uid);
-      await this.upsertToTurso(user.uid, data);
-
-      await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
+      const tableNames = TABLE_MAP.map((t) => t.sqlName);
+      const placeholders = tableNames.map(() => "?").join(", ");
+      const result = await tursoClient.execute({
+        sql: `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${placeholders})`,
+        args: tableNames,
+      });
+      const found = result.rows.length;
       console.log(
-        "[Sync] ✅ Turso Sync Completed at",
-        new Date().toISOString(),
+        `[Sync] 🔍 Tables found in Turso: ${found}/${tableNames.length}`,
       );
+      return found === tableNames.length;
     } catch (err) {
-      console.error("[Sync] ❌ Failed:", err);
-      throw err;
-    }
-  }
-
-  static async restoreFromCloud(userId: string): Promise<boolean> {
-    try {
-      await this.ensureReady();
-
-      const data = await this.fetchFromTurso(userId);
-
-      // If all tables are empty, no backup exists yet
-      const hasData = TABLE_MAP.some((t) => (data[t.key]?.length ?? 0) > 0);
-      if (!hasData) {
-        console.log("[Sync] No Turso backup found — first install");
-        return false;
-      }
-
-      await this.writeToLocalSQLite(data, userId);
-
-      console.log("[Sync] ✅ Restored from Turso backup");
-      return true;
-    } catch (err) {
-      console.error("[Sync] ❌ Restore failed:", err);
+      console.warn("[Sync] ⚠️ Could not verify Turso tables:", err);
       return false;
     }
   }
 
+  /**
+   * Ensures Turso tables exist.
+   * Always verifies via sqlite_master — never trusts the flag blindly.
+   * Resets the flag and re-migrates if tables are missing despite the flag.
+   */
+  private static async ensureReady(): Promise<void> {
+    const migrated = await AsyncStorage.getItem(TURSO_MIGRATED_KEY);
+
+    if (migrated === "true") {
+      const exists = await this.allTablesExist();
+      if (exists) {
+        console.log("[Sync] ✅ Turso tables verified — skipping migration");
+        return;
+      }
+      // Flag is stale — tables were never created or were dropped
+      console.warn(
+        "[Sync] ⚠️ Migration flag set but tables are missing. Resetting and re-migrating...",
+      );
+      await AsyncStorage.removeItem(TURSO_MIGRATED_KEY);
+    }
+
+    try {
+      console.log("[Sync] 🚀 Running Turso Migrations...");
+      await migrateTurso();
+      await AsyncStorage.setItem(TURSO_MIGRATED_KEY, "true");
+      console.log("[Sync] ✅ Turso Tables Ready");
+    } catch (err) {
+      console.error("[Sync] ❌ Migration failed:", err);
+      // Do NOT set the flag — forces retry on next sync
+      throw err; // Abort sync — no point pushing to non-existent tables
+    }
+  }
+
   static async getLastSyncTime(): Promise<string | null> {
-    return AsyncStorage.getItem(LAST_SYNC_KEY);
+    return await AsyncStorage.getItem(LAST_SYNC_KEY);
+  }
+
+  static async performSync(): Promise<void> {
+    const { auth } = await import("../config/firebase");
+    const user = auth.currentUser;
+    if (user) {
+      await this.smartSync(user.uid);
+    } else {
+      console.log("[Sync] No user logged in, skipping.");
+    }
+  }
+
+  static async smartSync(userId: string): Promise<boolean> {
+    try {
+      await this.ensureReady();
+
+      const [localData, tursoData] = await Promise.all([
+        this.fetchLocalData(userId),
+        this.fetchFromTurso(userId),
+      ]);
+
+      let didRestore = false;
+
+      for (const { key, table, userCol } of TABLE_MAP) {
+        const localRows = localData[key] || [];
+        const tursoRows = tursoData[key] || [];
+
+        try {
+          if (localRows.length === 0 && tursoRows.length > 0) {
+            console.log(
+              `[Sync] 📥 Restoring ${key} (${tursoRows.length} rows)`,
+            );
+            const cleanRows = tursoRows.map((r) => this.toLocalRow(r));
+            await db
+              .insert(table)
+              .values(cleanRows as any)
+              .onConflictDoNothing();
+            didRestore = true;
+          } else if (localRows.length > 0) {
+            console.log(`[Sync] 📤 Pushing ${key} (${localRows.length} rows)`);
+            const tursoRowsConverted = localRows.map((r) => this.toTursoRow(r));
+
+            await tursoDb.transaction(async (tx) => {
+              await tx.delete(table).where(eq(userCol, userId));
+              for (let i = 0; i < tursoRowsConverted.length; i += 100) {
+                await tx
+                  .insert(table)
+                  .values(tursoRowsConverted.slice(i, i + 100) as any);
+              }
+            });
+          } else {
+            console.log(`[Sync] ⏭️ ${key} — both empty, skipping`);
+          }
+        } catch (tableErr) {
+          console.error(`[Sync] ❌ Failed to sync table ${key}:`, tableErr);
+        }
+      }
+
+      await AsyncStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
+      return didRestore;
+    } catch (err) {
+      console.error("[Sync] ❌ Global smart sync failed:", err);
+      throw err;
+    }
   }
 
   private static async fetchLocalData(userId: string): Promise<SnapshotData> {
@@ -90,91 +173,39 @@ export class SyncService {
         db.select().from(table).where(eq(userCol, userId)),
       ),
     );
-
-    return Object.fromEntries(
-      TABLE_MAP.map(({ key }, i) => [key, results[i].map(this.serialize)]),
-    );
-  }
-
-  private static async upsertToTurso(
-    userId: string,
-    data: SnapshotData,
-  ): Promise<void> {
-    await Promise.all(
-      TABLE_MAP.map(({ table, userCol }) =>
-        tursoDb.delete(table).where(eq(userCol, userId)),
-      ),
-    );
-
-    // 3. Perform the insert
-    await Promise.all(
-      TABLE_MAP.map(async ({ key, table }) => {
-        const rows = data[key];
-        if (rows && rows.length > 0) {
-          // We use deserialize to turn ISO strings back into Date objects for Drizzle
-          const formattedRows = rows.map((r) => this.deserialize(r));
-
-          await tursoDb.insert(table).values(formattedRows as any[]);
-
-          // console.log(`[Sync] ✅ Uploaded ${rows.length} rows to ${key}`);
-        }
-      }),
-    );
+    return Object.fromEntries(TABLE_MAP.map(({ key }, i) => [key, results[i]]));
   }
 
   private static async fetchFromTurso(userId: string): Promise<SnapshotData> {
-    const results = await Promise.all(
-      TABLE_MAP.map(({ table, userCol }) =>
-        tursoDb.select().from(table).where(eq(userCol, userId)),
-      ),
-    );
-
-    return Object.fromEntries(
-      TABLE_MAP.map(({ key }, i) => [key, results[i].map(this.serialize)]),
-    );
+    const data: SnapshotData = {};
+    for (const { key, table, userCol } of TABLE_MAP) {
+      try {
+        data[key] = await tursoDb
+          .select()
+          .from(table)
+          .where(eq(userCol, userId));
+      } catch (err) {
+        console.warn(`[Sync] ⚠️ Table "${key}" fetch failed:`, err);
+        data[key] = [];
+      }
+    }
+    return data;
   }
 
-  private static async writeToLocalSQLite(
-    data: SnapshotData,
-    userId: string,
-  ): Promise<void> {
-    // Clear existing local rows for this user
-    await Promise.all(
-      TABLE_MAP.map(({ table, userCol }) =>
-        db.delete(table).where(eq(userCol, userId)),
-      ),
-    );
-
-    // Re-insert from Turso snapshot
-    await Promise.all(
-      TABLE_MAP.map(async ({ key, table }) => {
-        const rows = data[key];
-        if (rows && Array.isArray(rows) && rows.length > 0) {
-          const clean = rows.filter((r) => r != null && typeof r === "object");
-          if (clean.length > 0) {
-            await db.insert(table).values(clean.map(this.deserialize) as any[]);
-          }
-        }
-      }),
-    );
-  }
-
-  private static serialize(row: Record<string, any>): Record<string, any> {
+  private static toTursoRow(row: Record<string, any>): Record<string, any> {
     return Object.fromEntries(
       Object.entries(row).map(([k, v]) => [
         k,
-        v instanceof Date ? v.toISOString() : v,
+        DATE_FIELDS.has(k) && typeof v === "number" ? new Date(v * 1000) : v,
       ]),
     );
   }
 
-  private static deserialize(row: Record<string, any>): Record<string, any> {
-    if (!row || typeof row !== "object") return {};
-
+  private static toLocalRow(row: Record<string, any>): Record<string, any> {
     return Object.fromEntries(
       Object.entries(row).map(([k, v]) => [
         k,
-        DATE_FIELDS.has(k) && typeof v === "string" ? new Date(v) : v,
+        v instanceof Date ? Math.floor(v.getTime() / 1000) : v,
       ]),
     );
   }
