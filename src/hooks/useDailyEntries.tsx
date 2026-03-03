@@ -30,9 +30,20 @@ export const useCurrentMonthEntries = () => {
     })),
   );
 
+  // useEffect(() => {
+  //   loadEntriesByMonth(selectedMonth);
+  // }, [loadEntriesByMonth, selectedMonth]);
+
   useEffect(() => {
-    loadEntriesByMonth(selectedMonth);
-  }, [loadEntriesByMonth, selectedMonth]);
+    const actualCurrentMonth = new Date().toISOString().slice(0, 7);
+
+    if (selectedMonth !== actualCurrentMonth) {
+      setSelectedMonth(actualCurrentMonth);
+    } else {
+      loadEntriesByMonth(selectedMonth);
+    }
+
+  }, [loadEntriesByMonth, selectedMonth, setSelectedMonth]);
 
   return {
     entries: currentMonthEntries,

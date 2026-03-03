@@ -106,8 +106,13 @@ export const useDailyEntriesStore = create<DailyEntriesState>()(
           const userId = getCurrentUserId();
           await DailyEntriesService.createEntry(entry, userId);
 
-          const entryMonth = new Date(entry.date).toISOString().slice(0, 7);
+          const d = new Date(entry.date);
+
+          // const entryMonth = new Date(entry.date).toISOString().slice(0, 7);
+          const entryMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
           const { selectedMonth } = get();
+
+          console.log("SelectedMonth: ", selectedMonth);
 
           if (entryMonth === selectedMonth) {
             await get().refreshCurrentMonth();

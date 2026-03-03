@@ -9,11 +9,68 @@ const DailyActivity = () => {
   const { entries, isLoading, error } = useCurrentMonthEntries();
 
   // Group entries by date
+  // const groupedByDate = React.useMemo(() => {
+  //   const groups: Record<string, typeof entries> = {};
+
+  //   entries.forEach((entry) => {
+  //     const date = new Date(entry.date);
+  //     const dateKey = date.toLocaleDateString("en-US", {
+  //       month: "short",
+  //       day: "2-digit",
+  //       year: "numeric",
+  //     });
+
+  //     if (!groups[dateKey]) {
+  //       groups[dateKey] = [];
+  //     }
+  //     groups[dateKey].push(entry);
+  //   });
+
+  //   return groups;
+  // }, [entries]);
+
+  // const groupedByDate = React.useMemo(() => {
+  //   const groups: Record<string, typeof entries> = {};
+
+  //   entries.forEach((entry) => {
+  //     // Use a more robust date parsing or ensure timezone consistency
+  //     const date = new Date(entry.date);
+
+  //     // Ensure the date is valid before formatting
+  //     if (isNaN(date.getTime())) return;
+
+  //     const dateKey = date.toLocaleDateString("en-US", {
+  //       month: "short",
+  //       day: "2-digit",
+  //       year: "numeric",
+  //     });
+
+  //     if (!groups[dateKey]) {
+  //       groups[dateKey] = [];
+  //     }
+  //     groups[dateKey].push(entry);
+  //   });
+
+  //   return groups;
+  // }, [entries]);
+
   const groupedByDate = React.useMemo(() => {
     const groups: Record<string, typeof entries> = {};
 
     entries.forEach((entry) => {
-      const date = new Date(entry.date);
+      let date: Date;
+
+      // Handle both Date objects and strings
+      if (entry.date instanceof Date) {
+        date = entry.date;
+      } else {
+        // Force parsing as local date to prevent UTC "Day Sliding"
+        const parts = String(entry.date).split(/[-/T]/);
+        date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      }
+
+      if (isNaN(date.getTime())) return;
+
       const dateKey = date.toLocaleDateString("en-US", {
         month: "short",
         day: "2-digit",
@@ -63,11 +120,15 @@ const DailyActivity = () => {
     );
   }
 
+  // console.log('Raw Entries:', entries);
+  // console.log('Selected Month:', selectedMonth);
+
   return (
     <View className="gap-y-5">
       {sortedDates.map((date) => {
         const dayEntries = groupedByDate[date];
         const dayTotal = dayEntries.reduce((sum, entry) => sum + entry.amount, 0);
+        console.log("Day Entries: ", date)
 
         const items = dayEntries.map((entry) => ({
           category: entry.category,
